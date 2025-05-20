@@ -8,11 +8,11 @@
 // #define WIFI_SSID "VIVOFIBRA-7ABE"
 // #define WIFI_SSID "uaifai-brum" // Nome da rede Wi-Fi que será usada
 
-// #define WIFI_SSID "Cozinha"
-// #define WIFI_PASSWORD "feliciefred" // Senha da rede Wi-Fi
+#define WIFI_SSID "Cozinha"
+#define WIFI_PASSWORD "feliciefred" // Senha da rede Wi-Fi
 
-#define WIFI_SSID "HIRATA" // Nome da rede Wi-Fi que será usada
-#define WIFI_PASSWORD "tonico123" // Senha da rede Wi-Fi
+// #define WIFI_SSID "HIRATA" // Nome da rede Wi-Fi que será usada
+// #define WIFI_PASSWORD "tonico123" // Senha da rede Wi-Fi
 
 #define DATABASE_URL "https://test-75680-default-rtdb.firebaseio.com/" // URL do Realtime Database do Firebase
 #define DATABASE_SECRET "SWc4MadC9VEjr2FqUA4nenvtXZDczXkD7Zs3Hq4e" // Token de autenticação legado do Firebase
@@ -70,11 +70,10 @@ int tmpValue = 0;
 int healthPoints = 100; // valor da vida do personagem (0-100)
 bool lastAddState = false;
 bool lastSubState = false;
+int ldrValue = 0;
 int srvValue = 0; // Valor padrão de ângulo para o servo (0 a 180)
 
 // int valueToSend = 0; // valor a ser enviado para o Firebase
-
-
 
 int lightValue = 0;
 
@@ -97,7 +96,7 @@ void controllerTask(void *parameter) {
   bool mode = false;
   bool lastMode = false;
 
-  int localPot, localBzz, localBtn, localRed, localGreen, localBlue, localTmp, localHps, localSrv;
+  int localPot, localBzz, localBtn, localRed, localGreen, localBlue, localTmp, localHps, localLdr, localSrv;
   FirebaseJson json;
   FirebaseJsonData result;
 
@@ -172,11 +171,13 @@ void controllerTask(void *parameter) {
         xSemaphoreGive(srvMutex);
       }
 
+      // Lê o valor da vida
+      if (xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
+        localLdr = ldrValue;
+        xSemaphoreGive(ldrMutex);
+      }
 
-
-
-
-      Serial.printf("Enviando -> Pot: %d | Tmp: %d | Bzz: %d | Hps: %d | Srv: %d | Btn: %d | R: %d G: %d B: %d\n", localPot, localTmp, localBzz, localHps, localSrv, localBtn, localRed, localGreen, localBlue);
+      Serial.printf("Enviando -> Pot: %d | Tmp: %d | LDR: %d | Bzz: %d | Hps: %d | Srv: %d | Btn: %d | R: %d G: %d B: %d\n", localPot, localTmp, localLdr, localBzz, localHps, localSrv, localBtn, localRed, localGreen, localBlue);
 
       // Envio para o Firebase
       bool ok = true;
@@ -189,6 +190,7 @@ void controllerTask(void *parameter) {
       ok &= Firebase.setInt(fbdo, "/sensor/led/blue", localBlue);
       ok &= Firebase.setInt(fbdo, "/sensor/vida", localHps);
       ok &= Firebase.setInt(fbdo, "/sensor/servo", localSrv);
+      ok &= Firebase.setInt(fbdo, "/sensor/luminosidade", localLdr);
 
       if (ok) {
         Serial.println("Dados enviados com sucesso!");
@@ -240,6 +242,12 @@ void controllerTask(void *parameter) {
         if (json.get(result, "temperatura") && xSemaphoreTake(tmpMutex, portMAX_DELAY)) {
           tmpValue = result.floatValue;
           xSemaphoreGive(tmpMutex);
+        }
+
+        // Luminosidade
+        if (json.get(result, "luminosidade") && xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
+          ldrValue = result.intValue;
+          xSemaphoreGive(ldrMutex);
         }
 
         // Vida
@@ -405,7 +413,6 @@ void playHealthDownMelody() {
   ledcWriteTone(3, 0); // silencia
 }
 
-
 void updateHealthLEDs(int hp) {
   digitalWrite(RED_HEALTH_PIN, LOW);
   digitalWrite(YELLOW_HEALTH_PIN, LOW);
@@ -505,10 +512,6 @@ void servoTask(void *parameter) {
   }
 }
 
-
-
-
-
 // SETUP==============
 
 void setup() {
@@ -561,7 +564,6 @@ void setup() {
   pinMode(GREEN2_HEALTH_PIN, OUTPUT);
   pinMode(GREEN3_HEALTH_PIN, OUTPUT);
   updateHealthLEDs(healthPoints);
-
 
   // Inicializa o servo
   myServo.attach(SERVO_PIN);
@@ -628,7 +630,6 @@ void setup() {
     0
   );
 
-
   // Cria a thread para o LED RGB no core 0
   xTaskCreatePinnedToCore(
     rgbLedTask,       // função
@@ -661,8 +662,6 @@ void setup() {
     1
   );
 
-  // updateHealthLEDs(healthPoints);
-  
   xTaskCreatePinnedToCore(
     readLightTask,
     "ReadLightTask",
@@ -716,7 +715,6 @@ void loop() {
       bzzValue = localPot;
       xSemaphoreGive(bzzMutex);
     }
-
 
     angulo = map(localPot, 0, 4095, 0, 180);  // Mapeia para 0 a 180 graus
 
