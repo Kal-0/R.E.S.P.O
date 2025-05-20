@@ -44,6 +44,9 @@
 #define GREEN2_HEALTH_PIN 22
 #define GREEN3_HEALTH_PIN 23
 
+// Pino para o sensor de luminosidade LDR
+#define LDR_PIN 32
+
 
 FirebaseData fbdo; // Objeto para manipulação de dados com o Firebase
 FirebaseAuth auth; // Estrutura usada para autenticação (não usada aqui pois estamos usando token legado)
@@ -60,15 +63,13 @@ int greenValue = 0; // valor da cor verde (0–255)
 int blueValue = 0;  // valor da cor azul (0–255)
 int tmpValue = 0;
 
-
-
 int valueToSend = 0; // valor a ser enviado para o Firebase
-
 
 int healthPoints = 100; // valor da vida do personagem (0-100)
 bool lastAddState = false;
 bool lastSubState = false;
 
+int lightValue = 0;
 
 SemaphoreHandle_t frbMutex; // semáforo para controle de acesso ao firebase
 SemaphoreHandle_t conMutex; // semáforo para controle de acesso ao controle_remoto
@@ -77,8 +78,8 @@ SemaphoreHandle_t bzzMutex; // semáforo para controle de acesso ao buzzer
 SemaphoreHandle_t btnMutex; // semáforo para controle de acesso ao botão
 SemaphoreHandle_t rgbMutex; // semáforo para controle de acesso às cores RGB
 SemaphoreHandle_t tmpMutex; // semáforo para controle de acesso à temperatura
-SemaphoreHandle_t hpMutex;
-
+SemaphoreHandle_t hpMutex; // semáforo para controle de acesso à vida
+SemaphoreHandle_t ldrMutex;  // semáforo para controle de acesso à luminosidade
 
 // FUNCTIONS======================
 
@@ -465,6 +466,30 @@ void readTempTask(void *parameter) {
   }
 }
 
+void playHealthUpMelody() {
+  int melody[] = {523, 659, 784, 1046}; // C5, E5, G5, C6
+  int duration = 120;
+
+  for (int i = 0; i < 4; i++) {
+    ledcWriteTone(3, melody[i]);
+    vTaskDelay(duration / portTICK_PERIOD_MS);
+  }
+
+  ledcWriteTone(3, 0); // desliga o som
+}
+
+void playHealthDownMelody() {
+  int melody[] = {880, 740, 660, 400, 300, 440}; // notas em Hz
+  int durations[] = {100, 120, 150, 120, 100, 300};
+
+  for (int i = 0; i < 6; i++) {
+    ledcWriteTone(3, melody[i]);
+    vTaskDelay(durations[i] / portTICK_PERIOD_MS);
+  }
+
+  ledcWriteTone(3, 0); // silencia
+}
+
 
 void updateHealthLEDs(int hp) {
   digitalWrite(RED_HEALTH_PIN, LOW);
@@ -504,23 +529,26 @@ void healthControlTask(void *parameter) {
 
     // Aumenta vida
     if (currentAddState && !lastAddState) {
-      if (xSemaphoreTake(hpMutex, portMAX_DELAY)) {
-        healthPoints = min(100, healthPoints + 10);
-        Serial.printf("Vida aumentada: %d\n", healthPoints);
-        updateHealthLEDs(healthPoints); // atualiza LEDs
-        xSemaphoreGive(hpMutex);
-      }
+    if (xSemaphoreTake(hpMutex, portMAX_DELAY)) {
+      healthPoints = min(100, healthPoints + 10);
+      Serial.printf("Vida aumentada: %d\n", healthPoints);
+      updateHealthLEDs(healthPoints);
+      playHealthUpMelody(); // 🎵 toca a música
+      xSemaphoreGive(hpMutex);  
+    }
+
     }
 
     // Diminui vida
-    if (currentSubState && !lastSubState) {
-      if (xSemaphoreTake(hpMutex, portMAX_DELAY)) {
-        healthPoints = max(0, healthPoints - 10);
-        Serial.printf("Vida diminuída: %d\n", healthPoints);
-        updateHealthLEDs(healthPoints); // atualiza LEDs
-        xSemaphoreGive(hpMutex);
-      }
+  if (currentSubState && !lastSubState) {
+    if (xSemaphoreTake(hpMutex, portMAX_DELAY)) {
+      healthPoints = max(0, healthPoints - 10);
+      Serial.printf("Vida diminuída: %d\n", healthPoints);
+      updateHealthLEDs(healthPoints);
+      playHealthDownMelody(); // 😈 toca a melodia demoníaca
+      xSemaphoreGive(hpMutex);
     }
+  }
 
     lastAddState = currentAddState;
     lastSubState = currentSubState;
@@ -529,6 +557,20 @@ void healthControlTask(void *parameter) {
   }
 }
 
+void readLightTask(void *parameter) {
+  int raw;
+
+  while (true) {
+    raw = analogRead(LDR_PIN); // 0 a 4095
+
+    if (xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
+      lightValue = raw;
+      xSemaphoreGive(ldrMutex);
+    }
+
+    vTaskDelay(500 / portTICK_PERIOD_MS); // leitura a cada 0,5s
+  }
+}
 
 
 // // Task que envia os dados para o Firebase a cada 1s
@@ -651,6 +693,8 @@ void setup() {
   pinMode(GREEN2_HEALTH_PIN, OUTPUT);
   pinMode(GREEN3_HEALTH_PIN, OUTPUT);
 
+  pinMode(LDR_PIN, INPUT);
+
   // Criação dos mutexes
   frbMutex = xSemaphoreCreateMutex();
   conMutex = xSemaphoreCreateMutex();
@@ -660,7 +704,7 @@ void setup() {
   rgbMutex = xSemaphoreCreateMutex();
   tmpMutex = xSemaphoreCreateMutex();
   hpMutex = xSemaphoreCreateMutex();
-
+  ldrMutex = xSemaphoreCreateMutex();
 
   // Cria a task que lê o controle_mode no core 0
   xTaskCreatePinnedToCore(
@@ -743,6 +787,16 @@ void setup() {
 
   updateHealthLEDs(healthPoints);
   
+  xTaskCreatePinnedToCore(
+    readLightTask,
+    "ReadLightTask",
+    4096,
+    NULL,
+    1,
+    NULL,
+    0
+  );
+
   // // Cria a task que envia os dados para o Firebase no core 1
   // xTaskCreatePinnedToCore(
   //   sendToFirebaseTask,
@@ -763,7 +817,7 @@ void loop() {
     if (xSemaphoreTake(potMutex, portMAX_DELAY)) {
       localPot = potValue;
 
-      // Serial.printf("Pot lido: %d\n", localPot);
+      Serial.printf("Pot lido: %d\n", localPot);
       xSemaphoreGive(potMutex);
     }
   
@@ -785,11 +839,13 @@ void loop() {
       xSemaphoreGive(bzzMutex);
     }
   
+    if (xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
+      Serial.printf("Luminosidade: %d\n", lightValue); // quanto menor, mais escuro
+      xSemaphoreGive(ldrMutex);
+    }
 
   delay(1000); // printa a cada 1 segundo
 
   }
-  
-
   
 }
