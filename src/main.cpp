@@ -2,16 +2,17 @@
 #include <WiFi.h> // Biblioteca para conectar o ESP32 a redes Wi-Fi
 #include <FirebaseESP32.h> // Biblioteca para comunicação com Firebase Realtime Database
 #include <addons/RTDBHelper.h> // Biblioteca auxiliar da FirebaseESP32 para debug/log
+#include <ESP32Servo.h> // Biblioteca para controle de servos no ESP32
 
 
 // #define WIFI_SSID "VIVOFIBRA-7ABE"
 // #define WIFI_SSID "uaifai-brum" // Nome da rede Wi-Fi que será usada
 
-#define WIFI_SSID "Cozinha"
-#define WIFI_PASSWORD "feliciefred" // Senha da rede Wi-Fi
+// #define WIFI_SSID "Cozinha"
+// #define WIFI_PASSWORD "feliciefred" // Senha da rede Wi-Fi
 
-// #define WIFI_SSID "HIRATA" // Nome da rede Wi-Fi que será usada
-// #define WIFI_PASSWORD "tonico123" // Senha da rede Wi-Fi
+#define WIFI_SSID "HIRATA" // Nome da rede Wi-Fi que será usada
+#define WIFI_PASSWORD "tonico123" // Senha da rede Wi-Fi
 
 #define DATABASE_URL "https://test-75680-default-rtdb.firebaseio.com/" // URL do Realtime Database do Firebase
 #define DATABASE_SECRET "SWc4MadC9VEjr2FqUA4nenvtXZDczXkD7Zs3Hq4e" // Token de autenticação legado do Firebase
@@ -45,9 +46,13 @@
 #define GREEN3_HEALTH_PIN 23
 
 
+#define SERVO_PIN 19 // Pino ao qual o servo está conectado
+
+
 FirebaseData fbdo; // Objeto para manipulação de dados com o Firebase
 FirebaseAuth auth; // Estrutura usada para autenticação (não usada aqui pois estamos usando token legado)
 FirebaseConfig config; // Estrutura usada para configuração do Firebase
+Servo myServo; // Objeto Servo
 
 bool controlModeEnabled = false; // false = modo local (sensores), true = modo remoto (valores do Firebase)
 
@@ -59,15 +64,14 @@ int redValue = 0;   // valor da cor vermelha (0–255)
 int greenValue = 0; // valor da cor verde (0–255)
 int blueValue = 0;  // valor da cor azul (0–255)
 int tmpValue = 0;
-
-
-
-int valueToSend = 0; // valor a ser enviado para o Firebase
-
-
 int healthPoints = 100; // valor da vida do personagem (0-100)
 bool lastAddState = false;
 bool lastSubState = false;
+int srvValue = 0; // Valor padrão de ângulo para o servo (0 a 180)
+
+// int valueToSend = 0; // valor a ser enviado para o Firebase
+
+
 
 
 SemaphoreHandle_t frbMutex; // semáforo para controle de acesso ao firebase
@@ -77,142 +81,18 @@ SemaphoreHandle_t bzzMutex; // semáforo para controle de acesso ao buzzer
 SemaphoreHandle_t btnMutex; // semáforo para controle de acesso ao botão
 SemaphoreHandle_t rgbMutex; // semáforo para controle de acesso às cores RGB
 SemaphoreHandle_t tmpMutex; // semáforo para controle de acesso à temperatura
-SemaphoreHandle_t hpMutex;
+SemaphoreHandle_t hpsMutex; // Semáforo para controle de acesso ao valor dos pontos de vida
+SemaphoreHandle_t srvMutex; // Semáforo para controle de acesso ao valor do servo
 
 
 // FUNCTIONS======================
 
-// Task que faz a leitura do modo de operação no firebase constantemente
-// void checkControlModeTask(void *parameter) {
-//   bool mode;
-//   bool lastMode;
-
-//   while (true) {
-//     if (Firebase.getBool(fbdo, "/control_mode")) {
-
-//       lastMode = mode;
-//       mode = fbdo.boolData();
-
-//       if (xSemaphoreTake(conMutex, portMAX_DELAY)) {
-//         controlModeEnabled = mode; // atualiza valor global
-//         xSemaphoreGive(conMutex);
-//       }
-
-//       if (mode != lastMode){
-//         Serial.printf("Modo de controle atualizado: %s\n", mode ? "REMOTO" : "LOCAL");
-//       }
-      
-      
-//     } else {
-//         Serial.printf("Erro ao ler control_mode: %s\n", fbdo.errorReason().c_str());
-//     }
-
-//     vTaskDelay(2000 / portTICK_PERIOD_MS); // Checa a cada 2 segundos
-//   }
-// }
-
-// void controlModeTask(void *parameter) {
-//   FirebaseJson json;
-//   bool mode;
-//   bool lastMode;
-
-//   while (true) {
-
-//     // if (xSemaphoreTake(frbMutex, portMAX_DELAY)) {
-//       Firebase.getInt(fbdo, "/sensor/botao");
-//       lastMode = mode;
-//       // mode = fbdo.boolData();
-//       mode = false;
-
-//       if (xSemaphoreTake(conMutex, portMAX_DELAY)) {
-//         controlModeEnabled = mode;
-//         xSemaphoreGive(conMutex);
-//       }
-
-//       if (mode != lastMode) {
-//         Serial.printf("Modo de controle atualizado: %s\n", mode ? "REMOTO" : "LOCAL");
-//       }
-
-//       // // SE ESTIVER EM MODO REMOTO, ATUALIZA TODAS AS VARIÁVEIS GLOBAIS
-//       // if (mode) {
-//       //   int tempInt;
-//       //   float tempFloat;
-
-//       //   // Potenciômetro
-//       //   if (Firebase.getInt(fbdo, "/sensor/potenciometro")) {
-//       //     tempInt = fbdo.intData();
-//       //     if (xSemaphoreTake(potMutex, portMAX_DELAY)) {
-//       //       potValue = tempInt;
-//       //       xSemaphoreGive(potMutex);
-//       //     }
-//       //   }
-
-//       //   // Buzzer
-//       //   if (Firebase.getInt(fbdo, "/sensor/buzzer")) {
-//       //     tempInt = fbdo.intData();
-//       //     if (xSemaphoreTake(bzzMutex, portMAX_DELAY)) {
-//       //       bzzValue = tempInt;
-//       //       xSemaphoreGive(bzzMutex);
-//       //     }
-//       //   }
-
-//       //   // Botão
-//       //   if (Firebase.getBool(fbdo, "/sensor/botao")) {
-//       //     bool tempBool = fbdo.boolData();
-//       //     if (xSemaphoreTake(btnMutex, portMAX_DELAY)) {
-//       //       btnValue = tempBool;
-//       //       xSemaphoreGive(btnMutex);
-//       //     }
-//       //   }
-
-//       //   // LED RGB
-//       //   if (Firebase.getInt(fbdo, "/sensor/led/red")) {
-//       //     tempInt = fbdo.intData();
-//       //     if (xSemaphoreTake(rgbMutex, portMAX_DELAY)) {
-//       //       redValue = tempInt;
-//       //       xSemaphoreGive(rgbMutex);
-//       //     }
-//       //   }
-//       //   if (Firebase.getInt(fbdo, "/sensor/led/green")) {
-//       //     tempInt = fbdo.intData();
-//       //     if (xSemaphoreTake(rgbMutex, portMAX_DELAY)) {
-//       //       greenValue = tempInt;
-//       //       xSemaphoreGive(rgbMutex);
-//       //     }
-//       //   }
-//       //   if (Firebase.getInt(fbdo, "/sensor/led/blue")) {
-//       //     tempInt = fbdo.intData();
-//       //     if (xSemaphoreTake(rgbMutex, portMAX_DELAY)) {
-//       //       blueValue = tempInt;
-//       //       xSemaphoreGive(rgbMutex);
-//       //     }
-//       //   }
-
-//       //   // Temperatura
-//       //   if (Firebase.getFloat(fbdo, "/sensor/temperatura")) {
-//       //     tempFloat = fbdo.floatData();
-//       //     if (xSemaphoreTake(tmpMutex, portMAX_DELAY)) {
-//       //       tmpValue = (int)tempFloat;
-//       //       xSemaphoreGive(tmpMutex);
-//       //     }
-//       //   }
-//       // }
-//       // xSemaphoreGive(frbMutex);
-
-//     // } else {
-//     //   Serial.printf("Erro ao ler control_mode: %s\n", fbdo.errorReason().c_str());
-//     // }
-
-//     vTaskDelay(2000 / portTICK_PERIOD_MS); // A cada 2s
-//   }
-// }
-
-
-void controlModeTask(void *parameter) {
+// Task que faz o controle da leitura do modo de operação no firebase e envio dos valores globais constantemente
+void controllerTask(void *parameter) {
   bool mode = false;
   bool lastMode = false;
 
-  int localPot, localBzz, localBtn, localRed, localGreen, localBlue, localTmp;
+  int localPot, localBzz, localBtn, localRed, localGreen, localBlue, localTmp, localHps, localSrv;
   FirebaseJson json;
   FirebaseJsonData result;
 
@@ -275,7 +155,23 @@ void controlModeTask(void *parameter) {
         xSemaphoreGive(tmpMutex);
       }
 
-      Serial.printf("Enviando -> Pot: %d | Tmp: %d | Bzz: %d | Btn: %d | R: %d G: %d B: %d\n", localPot, localTmp, localBzz, localBtn, localRed, localGreen, localBlue);
+      // Lê o valor da vida
+      if (xSemaphoreTake(hpsMutex, portMAX_DELAY)) {
+        localHps = healthPoints;
+        xSemaphoreGive(hpsMutex);
+      }
+
+      // Lê o valor do servo
+      if (xSemaphoreTake(srvMutex, portMAX_DELAY)) {
+        localSrv = srvValue;
+        xSemaphoreGive(srvMutex);
+      }
+
+
+
+
+
+      Serial.printf("Enviando -> Pot: %d | Tmp: %d | Bzz: %d | Hps: %d | Srv: %d | Btn: %d | R: %d G: %d B: %d\n", localPot, localTmp, localBzz, localHps, localSrv, localBtn, localRed, localGreen, localBlue);
 
       // Envio para o Firebase
       bool ok = true;
@@ -286,6 +182,8 @@ void controlModeTask(void *parameter) {
       ok &= Firebase.setInt(fbdo, "/sensor/led/red", localRed);
       ok &= Firebase.setInt(fbdo, "/sensor/led/green", localGreen);
       ok &= Firebase.setInt(fbdo, "/sensor/led/blue", localBlue);
+      ok &= Firebase.setInt(fbdo, "/sensor/vida", localHps);
+      ok &= Firebase.setInt(fbdo, "/sensor/servo", localSrv);
 
       if (ok) {
         Serial.println("Dados enviados com sucesso!");
@@ -338,6 +236,19 @@ void controlModeTask(void *parameter) {
           tmpValue = result.floatValue;
           xSemaphoreGive(tmpMutex);
         }
+
+        // Vida
+        if (json.get(result, "vida") && xSemaphoreTake(hpsMutex, portMAX_DELAY)) {
+          healthPoints = result.intValue;
+          xSemaphoreGive(hpsMutex);
+        }
+
+        // Servo
+        if (json.get(result, "servo") && xSemaphoreTake(srvMutex, portMAX_DELAY)) {
+          srvValue = result.intValue;
+          xSemaphoreGive(srvMutex);
+        }
+        
 
       } else {
         Serial.printf("Erro ao ler JSON: %s\n", fbdo.errorReason().c_str());
@@ -504,21 +415,21 @@ void healthControlTask(void *parameter) {
 
     // Aumenta vida
     if (currentAddState && !lastAddState) {
-      if (xSemaphoreTake(hpMutex, portMAX_DELAY)) {
+      if (xSemaphoreTake(hpsMutex, portMAX_DELAY)) {
         healthPoints = min(100, healthPoints + 10);
         Serial.printf("Vida aumentada: %d\n", healthPoints);
         updateHealthLEDs(healthPoints); // atualiza LEDs
-        xSemaphoreGive(hpMutex);
+        xSemaphoreGive(hpsMutex);
       }
     }
 
     // Diminui vida
     if (currentSubState && !lastSubState) {
-      if (xSemaphoreTake(hpMutex, portMAX_DELAY)) {
+      if (xSemaphoreTake(hpsMutex, portMAX_DELAY)) {
         healthPoints = max(0, healthPoints - 10);
         Serial.printf("Vida diminuída: %d\n", healthPoints);
         updateHealthLEDs(healthPoints); // atualiza LEDs
-        xSemaphoreGive(hpMutex);
+        xSemaphoreGive(hpsMutex);
       }
     }
 
@@ -530,72 +441,25 @@ void healthControlTask(void *parameter) {
 }
 
 
+void servoTask(void *parameter) {
+  int localServo;
 
-// // Task que envia os dados para o Firebase a cada 1s
-// void sendToFirebaseTask(void *parameter) {
-//   int localPot;
-//   // int localPot;
-//   int localBtn;
-//   int localRed, localGreen, localBlue;
-//   int localTmp;
+  while (true) {
+    if (xSemaphoreTake(srvMutex, portMAX_DELAY)) {
+      localServo = srvValue;
+      xSemaphoreGive(srvMutex);
+    }
 
-//   while (true) {
-//     // if (xSemaphoreTake(frbMutex, portMAX_DELAY)) {
-//       // Lê o valor do potenciômetro com mutex
-//       if (xSemaphoreTake(potMutex, portMAX_DELAY)) {
-//         localPot = potValue;
-//         xSemaphoreGive(potMutex);
-//       }
+    Serial.printf("Servo: %d\n", localServo);
 
-//       // Lê o valor do buzzer com mutex
-//       if (xSemaphoreTake(bzzMutex, portMAX_DELAY)) {
-//         localPot = bzzValue;
-//         xSemaphoreGive(bzzMutex);
-//       }
+    // Garante que o valor está dentro dos limites válidos do servo
+    localServo = constrain(localServo, 0, 180);
+    myServo.write(localServo);
 
-//       // Lê o valor do botão com mutex
-//       if (xSemaphoreTake(btnMutex, portMAX_DELAY)) {
-//         localBtn = btnValue;
-//         xSemaphoreGive(btnMutex);
-//       }
+    vTaskDelay(100 / portTICK_PERIOD_MS); // atualiza a cada 100ms
+  }
+}
 
-//       // Lê os valores RGB com mutex
-//       if (xSemaphoreTake(rgbMutex, portMAX_DELAY)) {
-//         localRed = redValue;
-//         localGreen = greenValue;
-//         localBlue = blueValue;
-//         xSemaphoreGive(rgbMutex);
-//       }
-
-//       // Lê o valor do sensor de temperatura com mutex
-//       if (xSemaphoreTake(tmpMutex, portMAX_DELAY)) {
-//         localTmp = tmpValue;
-//         xSemaphoreGive(tmpMutex);
-//       }
-
-//       Serial.printf("Enviando -> Pot: %d | Tmp: %d | Bzz: %d | Btn: %d | R: %d G: %d B: %d\n", localPot, localTmp, localPot, localBtn, localRed, localGreen, localBlue);
-
-//       // Envio para o Firebase
-//       bool ok = true;
-//       ok &= Firebase.setInt(fbdo, "/sensor/potenciometro", localPot);
-//       ok &= Firebase.setInt(fbdo, "/sensor/temperatura", localTmp);
-//       ok &= Firebase.setInt(fbdo, "/sensor/buzzer", localPot);
-//       ok &= Firebase.setInt(fbdo, "/sensor/botao", localBtn);
-//       ok &= Firebase.setInt(fbdo, "/sensor/led/red", localRed);
-//       ok &= Firebase.setInt(fbdo, "/sensor/led/green", localGreen);
-//       ok &= Firebase.setInt(fbdo, "/sensor/led/blue", localBlue);
-
-//       if (ok) {
-//         Serial.println("Dados enviados com sucesso!");
-//       } else {
-//         Serial.printf("Erro ao enviar: %s\n", fbdo.errorReason().c_str());
-//       }
-      
-//       // xSemaphoreGive(frbMutex);
-//     // }
-//       vTaskDelay(1000 / portTICK_PERIOD_MS); // espera 1 segundo
-//   }
-// }
 
 
 
@@ -624,6 +488,7 @@ void setup() {
   fbdo.setBSSLBufferSize(4096, 1024); // buffer de comunicação segura
   Firebase.begin(&config, &auth); // inicializa Firebase
 
+
   pinMode(POT_PIN, INPUT); // define pino como entrada
 
   // PWM para o buzzer 
@@ -650,6 +515,12 @@ void setup() {
   pinMode(GREEN1_HEALTH_PIN, OUTPUT);
   pinMode(GREEN2_HEALTH_PIN, OUTPUT);
   pinMode(GREEN3_HEALTH_PIN, OUTPUT);
+  updateHealthLEDs(healthPoints);
+
+
+  // Inicializa o servo
+  myServo.attach(SERVO_PIN);
+  myServo.write(srvValue); // Define a posição inicial do servo
 
   // Criação dos mutexes
   frbMutex = xSemaphoreCreateMutex();
@@ -659,13 +530,14 @@ void setup() {
   btnMutex = xSemaphoreCreateMutex();
   rgbMutex = xSemaphoreCreateMutex();
   tmpMutex = xSemaphoreCreateMutex();
-  hpMutex = xSemaphoreCreateMutex();
+  hpsMutex = xSemaphoreCreateMutex();
+  srvMutex = xSemaphoreCreateMutex();
 
 
   // Cria a task que lê o controle_mode no core 0
   xTaskCreatePinnedToCore(
-    controlModeTask,
-    "ControlModeTask",
+    controllerTask,
+    "ControllerTask",
     16384,   // 4 KB de stack (mais seguro para uso de Firebase)
     NULL,
     1,
@@ -741,35 +613,39 @@ void setup() {
     1
   );
 
-  updateHealthLEDs(healthPoints);
+
+
+  xTaskCreatePinnedToCore(
+    servoTask,     // Função da task
+    "ServoTask",  // Nome da task
+    4096,          // Tamanho da stack
+    NULL,          // Parâmetro
+    1,             // Prioridade
+    NULL,          // Handle
+    1              // Núcleo do ESP32
+  );
+
+
   
-  // // Cria a task que envia os dados para o Firebase no core 1
-  // xTaskCreatePinnedToCore(
-  //   sendToFirebaseTask,
-  //   "SendToFirebaseTask",
-  //   8182,
-  //   NULL,
-  //   1,
-  //   NULL,
-  //   1
-  // );
+  
 }
 
 void loop() {
   static unsigned long lastSend = 0;
 
   int localPot = potValue;
+  int angulo;
+
   if (!controlModeEnabled) {
     if (xSemaphoreTake(potMutex, portMAX_DELAY)) {
       localPot = potValue;
-
       // Serial.printf("Pot lido: %d\n", localPot);
       xSemaphoreGive(potMutex);
     }
   
-    if (xSemaphoreTake(hpMutex, portMAX_DELAY)) {
+    if (xSemaphoreTake(hpsMutex, portMAX_DELAY)) {
       Serial.printf("Vida atual: %d\n", healthPoints);
-      xSemaphoreGive(hpMutex);
+      xSemaphoreGive(hpsMutex);
     }
     
     // Atualiza valores RGB com base em alguma lógica ou Firebase (exemplo: fixo)
@@ -784,9 +660,17 @@ void loop() {
       bzzValue = localPot;
       xSemaphoreGive(bzzMutex);
     }
+
+
+    angulo = map(localPot, 0, 4095, 0, 180);  // Mapeia para 0 a 180 graus
+
+    if (xSemaphoreTake(srvMutex, portMAX_DELAY)) {
+      srvValue = angulo; // Atualiza o valor do servo
+      xSemaphoreGive(srvMutex);
+    }
   
 
-  delay(1000); // printa a cada 1 segundo
+    delay(1000); // printa a cada 1 segundo
 
   }
   
