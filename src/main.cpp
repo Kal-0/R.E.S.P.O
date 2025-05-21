@@ -5,19 +5,16 @@
 #include <ESP32Servo.h> // Biblioteca para controle de servos no ESP32
 #include "driver/ledc.h"
 
-
-
 // #define WIFI_SSID "VIVOFIBRA-7ABE"
 // #define WIFI_SSID "uaifai-brum" // Nome da rede Wi-Fi que será usada
-// #define WIFI_SSID "uaifai-tiradentes" // Nome da rede Wi-Fi que será usada
-// #define WIFI_PASSWORD "bemvindoaocesar" // Senha da rede Wi-Fi
-
+#define WIFI_SSID "uaifai-tiradentes" // Nome da rede Wi-Fi que será usada
+#define WIFI_PASSWORD "bemvindoaocesar" // Senha da rede Wi-Fi
 
 // #define WIFI_SSID "Cozinha"
 // #define WIFI_PASSWORD "feliciefred" // Senha da rede Wi-Fi
 
-#define WIFI_SSID "HIRATA" // Nome da rede Wi-Fi que será usada
-#define WIFI_PASSWORD "tonico123" // Senha da rede Wi-Fi
+// #define WIFI_SSID "HIRATA" // Nome da rede Wi-Fi que será usada
+// #define WIFI_PASSWORD "tonico123" // Senha da rede Wi-Fi
 
 #define DATABASE_URL "https://test-75680-default-rtdb.firebaseio.com/" // URL do Realtime Database do Firebase
 #define DATABASE_SECRET "SWc4MadC9VEjr2FqUA4nenvtXZDczXkD7Zs3Hq4e" // Token de autenticação legado do Firebase
@@ -29,7 +26,7 @@
 #define BUZZER_PIN 33 
 
 // Pino digital válido para o botão
-#define BUTTON_PIN 32 
+// #define BUTTON_PIN 32 
 
 // Pinos conectados ao LED RGB
 #define RED_PIN 25
@@ -44,22 +41,22 @@
 // Pino digital para o botão vermelho (remover vida)
 #define BTN_SUB_PIN 17
 
+// Pinos digitais para o sequencial de leds que representa a vida
+
 #define RED_HEALTH_PIN 0
 #define YELLOW_HEALTH_PIN 2
 #define GREEN1_HEALTH_PIN 21
 #define GREEN2_HEALTH_PIN 22
 #define GREEN3_HEALTH_PIN 23
 
-
-#define SERVO_PIN 18 // Pino ao qual o servo está conectado
+// Pino ao qual o servo está conectado
+#define SERVO_PIN 18
 
 // Pino para o sensor de luminosidade LDR
 #define LDR_PIN 32
 
-
-
+// Pino para o sensor de luminosidade 
 #define LANTERNA_PIN 15
-
 
 FirebaseData fbdo; // Objeto para manipulação de dados com o Firebase
 FirebaseAuth auth; // Estrutura usada para autenticação (não usada aqui pois estamos usando token legado)
@@ -67,7 +64,6 @@ FirebaseConfig config; // Estrutura usada para configuração do Firebase
 // Servo myServo; // Objeto Servo
 
 bool controlModeEnabled = false; // false = modo local (sensores), true = modo remoto (valores do Firebase)
-
 
 int potValue = 0; // valor compartilhado do potenciômetro
 int bzzValue = 0;
@@ -81,10 +77,15 @@ bool lastAddState = false;
 bool lastSubState = false;
 int ldrValue = 0;
 int srvValue = 0; // Valor padrão de ângulo para o servo (0 a 180)
-
-// int valueToSend = 0; // valor a ser enviado para o Firebase
-
 int lightValue = 0;
+
+enum EyeEvent {
+  EYE_NONE,
+  EYE_BLINK_GREEN,
+  EYE_BLINK_RED
+};
+
+QueueHandle_t eyeEventQueue;
 
 SemaphoreHandle_t frbMutex; // semáforo para controle de acesso ao firebase
 SemaphoreHandle_t conMutex; // semáforo para controle de acesso ao controle_remoto
@@ -99,6 +100,71 @@ SemaphoreHandle_t ldrMutex;  // semáforo para controle de acesso à luminosidad
 
 
 // FUNCTIONS======================
+
+void playHealthUpMelody() {
+  int melody[] = {523, 659, 784, 1046}; // C5, E5, G5, C6
+  int duration = 120;
+
+  for (int i = 0; i < 4; i++) {
+    ledcWriteTone(3, melody[i]);
+    vTaskDelay(duration / portTICK_PERIOD_MS);
+  }
+
+  ledcWriteTone(3, 0); // desliga o som
+}
+
+void playHealthDownMelody() {
+  int melody[] = {880, 740, 660, 400, 300, 440}; // notas em Hz
+  int durations[] = {100, 120, 150, 120, 100, 300};
+
+  for (int i = 0; i < 6; i++) {
+    ledcWriteTone(3, melody[i]);
+    vTaskDelay(durations[i] / portTICK_PERIOD_MS);
+  }
+
+  ledcWriteTone(3, 0); // silencia
+}
+
+void updateHealthLEDs(int hp) {
+  digitalWrite(RED_HEALTH_PIN, LOW);
+  digitalWrite(YELLOW_HEALTH_PIN, LOW);
+  digitalWrite(GREEN1_HEALTH_PIN, LOW);
+  digitalWrite(GREEN2_HEALTH_PIN, LOW);
+  digitalWrite(GREEN3_HEALTH_PIN, LOW);
+
+  if (hp >= 0 && hp <= 20) {
+    digitalWrite(RED_HEALTH_PIN, HIGH);
+  }
+  else if (hp >= 30 && hp <= 40) {
+    digitalWrite(RED_HEALTH_PIN, HIGH);
+    digitalWrite(YELLOW_HEALTH_PIN, HIGH);
+  }
+  else if (hp >= 50 && hp <= 70) {
+    digitalWrite(RED_HEALTH_PIN, HIGH);
+    digitalWrite(YELLOW_HEALTH_PIN, HIGH);
+    digitalWrite(GREEN1_HEALTH_PIN, HIGH);
+  }
+  else if (hp >= 80 && hp <= 90) {
+    digitalWrite(GREEN1_HEALTH_PIN, HIGH);
+    digitalWrite(GREEN2_HEALTH_PIN, HIGH);
+  }else if (hp == 100) {
+    digitalWrite(GREEN1_HEALTH_PIN, HIGH);
+    digitalWrite(GREEN2_HEALTH_PIN, HIGH);
+    digitalWrite(GREEN3_HEALTH_PIN, HIGH);
+  }
+}
+
+void setEyeColor(uint8_t r, uint8_t g, uint8_t b) {
+  if (xSemaphoreTake(rgbMutex, portMAX_DELAY)) {
+    redValue = r;
+    greenValue = g;
+    blueValue = b;
+    xSemaphoreGive(rgbMutex);
+  }
+}
+
+
+// TASKS==========================
 
 // Task que faz o controle da leitura do modo de operação no firebase e envio dos valores globais constantemente
 void controllerTask(void *parameter) {
@@ -322,27 +388,27 @@ void buzzerTask(void *parameter) {
 }
 
 // Task que faz a leitura do botão constantemente
-void readButtonTask(void *parameter) {
-  bool localBtn = false;
+// void readButtonTask(void *parameter) {
+//   bool localBtn = false;
 
-  while (true) {
+//   while (true) {
 
-    if (!controlModeEnabled) {
+//     if (!controlModeEnabled) {
 
-      localBtn = !digitalRead(BUTTON_PIN); // inverte o valor (pressionado = 1)
-      // Serial.printf("Botão lido: %d\n", rawBtn);
+//       localBtn = !digitalRead(BUTTON_PIN); // inverte o valor (pressionado = 1)
+//       // Serial.printf("Botão lido: %d\n", rawBtn);
       
 
-      if (xSemaphoreTake(btnMutex, portMAX_DELAY)) {
-        btnValue = localBtn; 
-        xSemaphoreGive(btnMutex);
-      }
+//       if (xSemaphoreTake(btnMutex, portMAX_DELAY)) {
+//         btnValue = localBtn; 
+//         xSemaphoreGive(btnMutex);
+//       }
 
-    }
+//     }
       
-    vTaskDelay(100 / portTICK_PERIOD_MS); // debounce simples (100 ms)
-  }
-}
+//     vTaskDelay(100 / portTICK_PERIOD_MS); // debounce simples (100 ms)
+//   }
+// }
 
 
 // Task que atualiza o LED RGB constantemente
@@ -367,7 +433,6 @@ void rgbLedTask(void *parameter) {
     vTaskDelay(100 / portTICK_PERIOD_MS); // atualiza a cada 100ms
   }
 }
-
 
 // Task que faz a leitura da temperatura constantemente
 void readTempTask(void *parameter) {
@@ -398,59 +463,6 @@ void readTempTask(void *parameter) {
   }
 }
 
-void playHealthUpMelody() {
-  int melody[] = {523, 659, 784, 1046}; // C5, E5, G5, C6
-  int duration = 120;
-
-  for (int i = 0; i < 4; i++) {
-    ledcWriteTone(3, melody[i]);
-    vTaskDelay(duration / portTICK_PERIOD_MS);
-  }
-
-  ledcWriteTone(3, 0); // desliga o som
-}
-
-void playHealthDownMelody() {
-  int melody[] = {880, 740, 660, 400, 300, 440}; // notas em Hz
-  int durations[] = {100, 120, 150, 120, 100, 300};
-
-  for (int i = 0; i < 6; i++) {
-    ledcWriteTone(3, melody[i]);
-    vTaskDelay(durations[i] / portTICK_PERIOD_MS);
-  }
-
-  ledcWriteTone(3, 0); // silencia
-}
-
-void updateHealthLEDs(int hp) {
-  digitalWrite(RED_HEALTH_PIN, LOW);
-  digitalWrite(YELLOW_HEALTH_PIN, LOW);
-  digitalWrite(GREEN1_HEALTH_PIN, LOW);
-  digitalWrite(GREEN2_HEALTH_PIN, LOW);
-  digitalWrite(GREEN3_HEALTH_PIN, LOW);
-
-  if (hp >= 0 && hp <= 20) {
-    digitalWrite(RED_HEALTH_PIN, HIGH);
-  }
-  else if (hp >= 30 && hp <= 40) {
-    digitalWrite(RED_HEALTH_PIN, HIGH);
-    digitalWrite(YELLOW_HEALTH_PIN, HIGH);
-  }
-  else if (hp >= 50 && hp <= 70) {
-    digitalWrite(RED_HEALTH_PIN, HIGH);
-    digitalWrite(YELLOW_HEALTH_PIN, HIGH);
-    digitalWrite(GREEN1_HEALTH_PIN, HIGH);
-  }
-  else if (hp >= 80 && hp <= 90) {
-    digitalWrite(GREEN1_HEALTH_PIN, HIGH);
-    digitalWrite(GREEN2_HEALTH_PIN, HIGH);
-  }else if (hp == 100) {
-    digitalWrite(GREEN1_HEALTH_PIN, HIGH);
-    digitalWrite(GREEN2_HEALTH_PIN, HIGH);
-    digitalWrite(GREEN3_HEALTH_PIN, HIGH);
-  }
-}
-
 void healthControlTask(void *parameter) {
   bool currentAddState, currentSubState;
 
@@ -464,6 +476,8 @@ void healthControlTask(void *parameter) {
       healthPoints = min(100, healthPoints + 10);
       Serial.printf("Vida aumentada: %d\n", healthPoints);
       updateHealthLEDs(healthPoints);
+      EyeEvent evt = EYE_BLINK_GREEN;
+      xQueueSend(eyeEventQueue, &evt, 0);
       playHealthUpMelody(); // 🎵 toca a música
       xSemaphoreGive(hpsMutex);  
     }
@@ -476,6 +490,8 @@ void healthControlTask(void *parameter) {
         healthPoints = max(0, healthPoints - 10);
         Serial.printf("Vida diminuída: %d\n", healthPoints);
         updateHealthLEDs(healthPoints); // atualiza LEDs
+        EyeEvent evt = EYE_BLINK_RED;
+        xQueueSend(eyeEventQueue, &evt, 0);
         playHealthDownMelody();
         xSemaphoreGive(hpsMutex);
       }
@@ -547,14 +563,36 @@ void servoTask(void *parameter) {
   }
 }
 
+void eyeTask(void *parameter) {
+  EyeEvent event;
+  uint8_t r, g, b;
 
+  while (true) {
+    if (xQueueReceive(eyeEventQueue, &event, portMAX_DELAY)) {
+      if (xSemaphoreTake(rgbMutex, portMAX_DELAY)) {
+        r = redValue;
+        g = greenValue;
+        b = blueValue;
+        xSemaphoreGive(rgbMutex);
+      }
 
-
-
-
-
-
-
+      switch (event) {
+        case EYE_BLINK_GREEN:
+          setEyeColor(0, 255, 0);
+          vTaskDelay(500 / portTICK_PERIOD_MS);
+          setEyeColor(r, g, b);
+          break;
+        case EYE_BLINK_RED:
+          setEyeColor(255, 0, 0);
+          vTaskDelay(500 / portTICK_PERIOD_MS);
+          setEyeColor(r, g, b);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+}
 
 // SETUP==============
 
@@ -587,7 +625,7 @@ void setup() {
   ledcSetup(3, 2000, 8); // 2kHz, 8 bits
   ledcAttachPin(BUZZER_PIN, 3);
 
-  pinMode(BUTTON_PIN, INPUT_PULLUP); // botão com resistor de pull-up interno
+  // pinMode(BUTTON_PIN, INPUT_PULLUP); // botão com resistor de pull-up interno
 
   // PWM nos pinos RGB (resolução 8 bits, freq 5kHz)
   ledcSetup(0, 5000, 8);
@@ -599,21 +637,17 @@ void setup() {
   ledcSetup(2, 5000, 8);
   ledcAttachPin(BLUE_PIN, 2);
 
-
-
+  // PWM dos botões de adicionar e remover vida
   pinMode(BTN_ADD_PIN, INPUT_PULLUP);
   pinMode(BTN_SUB_PIN, INPUT_PULLUP);
 
+  // PWM do array de leds de vida
   pinMode(RED_HEALTH_PIN, OUTPUT);
   pinMode(YELLOW_HEALTH_PIN, OUTPUT);
   pinMode(GREEN1_HEALTH_PIN, OUTPUT);
   pinMode(GREEN2_HEALTH_PIN, OUTPUT);
   pinMode(GREEN3_HEALTH_PIN, OUTPUT);
   updateHealthLEDs(healthPoints);
-
-
-
-
 
   // Configuração do servo
   // 1) Configura o timer LS (Low Speed)
@@ -642,11 +676,11 @@ void setup() {
   // myServo.attach(SERVO_PIN, 500 /*µs*/, 2400 /*µs*/); // 2) Inicialize o servo passando só o pino e o pulso mínimo/máximo:
   // myServo.write(srvValue); // 3) Defina a posição inicial:
 
-
+  // Configura o pino do LDR como input
   pinMode(LDR_PIN, INPUT);
 
+  // Configura o pino do led de alta luminosidade como output
   pinMode(LANTERNA_PIN, OUTPUT);
-
 
   // Criação dos mutexes
   frbMutex = xSemaphoreCreateMutex();
@@ -697,15 +731,15 @@ void setup() {
 
 
   // Cria a task que lê o botão no core 0
-  xTaskCreatePinnedToCore(
-    readButtonTask,
-    "ReadButtonTask",
-    4096,
-    NULL,
-    1,
-    NULL,
-    0
-  );
+  // xTaskCreatePinnedToCore(
+  //   readButtonTask,
+  //   "ReadButtonTask",
+  //   4096,
+  //   NULL,
+  //   1,
+  //   NULL,
+  //   0
+  // );
 
   // Cria a thread para o LED RGB no core 0
   xTaskCreatePinnedToCore(
@@ -729,6 +763,7 @@ void setup() {
     0                 // core 0
   );
 
+  // Cria a thread para o controle de vida
   xTaskCreatePinnedToCore(
     healthControlTask,
     "HealthControlTask",
@@ -739,6 +774,7 @@ void setup() {
     1
   );
 
+  // Cria a thread para a leitura do sensor LDR
   xTaskCreatePinnedToCore(
     readLightTask,
     "ReadLightTask",
@@ -749,6 +785,7 @@ void setup() {
     0
   );
 
+  // Cria a thread para o servo motor
   xTaskCreatePinnedToCore(
     servoTask,     // Função da task
     "ServoTask",  // Nome da task
@@ -759,8 +796,19 @@ void setup() {
     1              // Núcleo do ESP32
   );
 
-
+    eyeEventQueue = xQueueCreate(5, sizeof(EyeEvent));
+  xTaskCreatePinnedToCore(
+    eyeTask,
+    "EyeTask",
+    4096,
+    NULL,
+    1,
+    NULL,
+    1
+  );
   
+  setEyeColor(255, 255, 255); // cor branca inicial
+
 }
 
 void loop() {
