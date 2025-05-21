@@ -468,6 +468,7 @@ void servoTask(void *parameter) {
     // Atualiza o valor do servo apenas se houver mudança
     if (localServo != lastPosition) {
       // myServo.write(localServo);
+      
 
       // Converte o valor do servo (0 a 180) para o valor de pulso (500 a 2400 µs)
       uint32_t pulse = map(localServo, 0, 180, 500, 2400);  // µs
