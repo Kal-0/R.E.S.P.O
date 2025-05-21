@@ -7,6 +7,9 @@
 
 // #define WIFI_SSID "VIVOFIBRA-7ABE"
 // #define WIFI_SSID "uaifai-brum" // Nome da rede Wi-Fi que será usada
+// #define WIFI_SSID "uaifai-tiradentes" // Nome da rede Wi-Fi que será usada
+// #define WIFI_PASSWORD "bemvindoaocesar" // Senha da rede Wi-Fi
+
 
 #define WIFI_SSID "Cozinha"
 #define WIFI_PASSWORD "feliciefred" // Senha da rede Wi-Fi
@@ -50,6 +53,10 @@
 
 // Pino para o sensor de luminosidade LDR
 #define LDR_PIN 32
+
+
+
+#define LANTERNA_PIN 15
 
 
 FirebaseData fbdo; // Objeto para manipulação de dados com o Firebase
@@ -96,7 +103,7 @@ void controllerTask(void *parameter) {
   bool mode = false;
   bool lastMode = false;
 
-  int localPot, localBzz, localBtn, localRed, localGreen, localBlue, localTmp, localHps, localLdr, localSrv;
+  int localPot, localBzz, localLdr, localBtn, localRed, localGreen, localBlue, localTmp, localHps, localSrv;
   FirebaseJson json;
   FirebaseJsonData result;
 
@@ -171,7 +178,7 @@ void controllerTask(void *parameter) {
         xSemaphoreGive(srvMutex);
       }
 
-      // Lê o valor da vida
+      // Lê o valor da luinosidade
       if (xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
         localLdr = ldrValue;
         xSemaphoreGive(ldrMutex);
@@ -467,6 +474,7 @@ void healthControlTask(void *parameter) {
         healthPoints = max(0, healthPoints - 10);
         Serial.printf("Vida diminuída: %d\n", healthPoints);
         updateHealthLEDs(healthPoints); // atualiza LEDs
+        playHealthDownMelody();
         xSemaphoreGive(hpsMutex);
       }
     }
@@ -570,6 +578,9 @@ void setup() {
   myServo.write(srvValue); // Define a posição inicial do servo
 
   pinMode(LDR_PIN, INPUT);
+
+  pinMode(LANTERNA_PIN, OUTPUT);
+
 
   // Criação dos mutexes
   frbMutex = xSemaphoreCreateMutex();
@@ -726,6 +737,13 @@ void loop() {
     if (xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
       Serial.printf("Luminosidade: %d\n", lightValue); // quanto menor, mais escuro
       xSemaphoreGive(ldrMutex);
+      if (lightValue < 700 && healthPoints > 0) {
+        digitalWrite(LANTERNA_PIN, HIGH); // acende a lanterna
+      } else {
+        digitalWrite(LANTERNA_PIN, LOW);  // apaga a lanterna
+      }
+
+    xSemaphoreGive(ldrMutex);
     }
 
     delay(1000); // printa a cada 1 segundo
