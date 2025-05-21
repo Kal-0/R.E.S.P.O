@@ -3,6 +3,8 @@
 #include <FirebaseESP32.h> // Biblioteca para comunicação com Firebase Realtime Database
 #include <addons/RTDBHelper.h> // Biblioteca auxiliar da FirebaseESP32 para debug/log
 #include <ESP32Servo.h> // Biblioteca para controle de servos no ESP32
+#include "driver/ledc.h"
+
 
 
 // #define WIFI_SSID "VIVOFIBRA-7ABE"
@@ -46,13 +48,13 @@
 #define GREEN3_HEALTH_PIN 23
 
 
-#define SERVO_PIN 19 // Pino ao qual o servo está conectado
+#define SERVO_PIN 18 // Pino ao qual o servo está conectado
 
 
 FirebaseData fbdo; // Objeto para manipulação de dados com o Firebase
 FirebaseAuth auth; // Estrutura usada para autenticação (não usada aqui pois estamos usando token legado)
 FirebaseConfig config; // Estrutura usada para configuração do Firebase
-Servo myServo; // Objeto Servo
+// Servo myServo; // Objeto Servo
 
 bool controlModeEnabled = false; // false = modo local (sensores), true = modo remoto (valores do Firebase)
 
@@ -442,23 +444,52 @@ void healthControlTask(void *parameter) {
 
 
 void servoTask(void *parameter) {
-  int localServo;
+  int localServo = 0;
+  int lastPosition = 0;
 
   while (true) {
+
+    lastPosition = localServo;
+
+    // Lê o valor do servo com mutex
     if (xSemaphoreTake(srvMutex, portMAX_DELAY)) {
       localServo = srvValue;
       xSemaphoreGive(srvMutex);
     }
-
-    Serial.printf("Servo: %d\n", localServo);
-
+    // Serial.printf("Servo: %d\n", localServo);
+    
     // Garante que o valor está dentro dos limites válidos do servo
-    localServo = constrain(localServo, 0, 180);
-    myServo.write(localServo);
+    localServo = constrain(localServo, 9, 180);
+    // Serial.printf("Servo (constrained): %d\n", localServo);
 
-    vTaskDelay(100 / portTICK_PERIOD_MS); // atualiza a cada 100ms
+
+
+
+    // Atualiza o valor do servo apenas se houver mudança
+    if (localServo != lastPosition) {
+      // myServo.write(localServo);
+
+      // Converte o valor do servo (0 a 180) para o valor de pulso (500 a 2400 µs)
+      uint32_t pulse = map(localServo, 0, 180, 500, 2400);  // µs
+
+      // Converte µs para ticks de 16-bit em 50Hz:
+      //   tick = pulse (µs) / (1e6 / 50) * 2^16
+      uint32_t tick = (uint64_t)pulse * (1<<16) * 50 / 1000000;
+
+      // Converte ticks para duty cycle (0 a 65535)
+      ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, tick);
+      // Atualiza o duty cycle
+      ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+    }
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS); // atualiza a cada 100ms
   }
 }
+
+
+
+
+
 
 
 
@@ -507,6 +538,8 @@ void setup() {
   ledcSetup(2, 5000, 8);
   ledcAttachPin(BLUE_PIN, 2);
 
+
+
   pinMode(BTN_ADD_PIN, INPUT_PULLUP);
   pinMode(BTN_SUB_PIN, INPUT_PULLUP);
 
@@ -518,9 +551,36 @@ void setup() {
   updateHealthLEDs(healthPoints);
 
 
-  // Inicializa o servo
-  myServo.attach(SERVO_PIN);
-  myServo.write(srvValue); // Define a posição inicial do servo
+
+
+
+  // Configuração do servo
+  // 1) Configura o timer LS (Low Speed)
+  ledc_timer_config_t timer_conf;
+    timer_conf.speed_mode      = LEDC_LOW_SPEED_MODE;    // LS
+    timer_conf.timer_num       = LEDC_TIMER_0;           // escolhe um timer LS
+    timer_conf.duty_resolution = LEDC_TIMER_16_BIT;      // resolução de 16 bits
+    timer_conf.freq_hz         = 50;                     // 50 Hz para servos
+    timer_conf.clk_cfg         = LEDC_AUTO_CLK;          // clock automático
+  ledc_timer_config(&timer_conf);
+
+  // 2) Configura o canal LS que usa esse timer
+  ledc_channel_config_t ch_conf;
+    ch_conf.speed_mode = LEDC_LOW_SPEED_MODE;   // LS
+    ch_conf.channel    = LEDC_CHANNEL_0;        // canal LS 1 (0–7 disponíveis)
+    ch_conf.timer_sel  = LEDC_TIMER_0;          // timer que acabamos de configurar
+    ch_conf.intr_type  = LEDC_INTR_DISABLE;     // sem interrupção
+    ch_conf.gpio_num   = SERVO_PIN;             // pino do servo
+    ch_conf.duty       = 0;                     // posição inicial (0 pulse)
+    ch_conf.hpoint     = 0;                     // ponto de início do pulso
+  ledc_channel_config(&ch_conf);
+
+
+  // ledcSetup(8, 50, 16); // 1) Reserve um canal LOW SPEED livre para o servo (por exemplo o canal 8, 50 Hz, 16 bits):
+  // ledcAttachPin(SERVO_PIN, 8);
+  // myServo.attach(SERVO_PIN, 500 /*µs*/, 2400 /*µs*/); // 2) Inicialize o servo passando só o pino e o pulso mínimo/máximo:
+  // myServo.write(srvValue); // 3) Defina a posição inicial:
+
 
   // Criação dos mutexes
   frbMutex = xSemaphoreCreateMutex();
@@ -643,10 +703,10 @@ void loop() {
       xSemaphoreGive(potMutex);
     }
   
-    if (xSemaphoreTake(hpsMutex, portMAX_DELAY)) {
-      Serial.printf("Vida atual: %d\n", healthPoints);
-      xSemaphoreGive(hpsMutex);
-    }
+    // if (xSemaphoreTake(hpsMutex, portMAX_DELAY)) {
+    //   Serial.printf("Vida atual: %d\n", healthPoints);
+    //   xSemaphoreGive(hpsMutex);
+    // }
     
     // Atualiza valores RGB com base em alguma lógica ou Firebase (exemplo: fixo)
     if (xSemaphoreTake(rgbMutex, portMAX_DELAY)) {
@@ -663,7 +723,7 @@ void loop() {
 
 
     angulo = map(localPot, 0, 4095, 0, 180);  // Mapeia para 0 a 180 graus
-
+    // Serial.printf("Pot: %d | Angulo: %d\n", localPot, angulo);
     if (xSemaphoreTake(srvMutex, portMAX_DELAY)) {
       srvValue = angulo; // Atualiza o valor do servo
       xSemaphoreGive(srvMutex);
