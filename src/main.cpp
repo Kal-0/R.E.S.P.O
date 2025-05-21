@@ -9,6 +9,9 @@
 
 // #define WIFI_SSID "VIVOFIBRA-7ABE"
 // #define WIFI_SSID "uaifai-brum" // Nome da rede Wi-Fi que será usada
+// #define WIFI_SSID "uaifai-tiradentes" // Nome da rede Wi-Fi que será usada
+// #define WIFI_PASSWORD "bemvindoaocesar" // Senha da rede Wi-Fi
+
 
 // #define WIFI_SSID "Cozinha"
 // #define WIFI_PASSWORD "feliciefred" // Senha da rede Wi-Fi
@@ -50,6 +53,13 @@
 
 #define SERVO_PIN 18 // Pino ao qual o servo está conectado
 
+// Pino para o sensor de luminosidade LDR
+#define LDR_PIN 32
+
+
+
+#define LANTERNA_PIN 15
+
 
 FirebaseData fbdo; // Objeto para manipulação de dados com o Firebase
 FirebaseAuth auth; // Estrutura usada para autenticação (não usada aqui pois estamos usando token legado)
@@ -69,12 +79,12 @@ int tmpValue = 0;
 int healthPoints = 100; // valor da vida do personagem (0-100)
 bool lastAddState = false;
 bool lastSubState = false;
+int ldrValue = 0;
 int srvValue = 0; // Valor padrão de ângulo para o servo (0 a 180)
 
 // int valueToSend = 0; // valor a ser enviado para o Firebase
 
-
-
+int lightValue = 0;
 
 SemaphoreHandle_t frbMutex; // semáforo para controle de acesso ao firebase
 SemaphoreHandle_t conMutex; // semáforo para controle de acesso ao controle_remoto
@@ -83,8 +93,9 @@ SemaphoreHandle_t bzzMutex; // semáforo para controle de acesso ao buzzer
 SemaphoreHandle_t btnMutex; // semáforo para controle de acesso ao botão
 SemaphoreHandle_t rgbMutex; // semáforo para controle de acesso às cores RGB
 SemaphoreHandle_t tmpMutex; // semáforo para controle de acesso à temperatura
-SemaphoreHandle_t hpsMutex; // Semáforo para controle de acesso ao valor dos pontos de vida
+SemaphoreHandle_t hpsMutex;
 SemaphoreHandle_t srvMutex; // Semáforo para controle de acesso ao valor do servo
+SemaphoreHandle_t ldrMutex;  // semáforo para controle de acesso à luminosidade
 
 
 // FUNCTIONS======================
@@ -94,7 +105,7 @@ void controllerTask(void *parameter) {
   bool mode = false;
   bool lastMode = false;
 
-  int localPot, localBzz, localBtn, localRed, localGreen, localBlue, localTmp, localHps, localSrv;
+  int localPot, localBzz, localLdr, localBtn, localRed, localGreen, localBlue, localTmp, localHps, localSrv;
   FirebaseJson json;
   FirebaseJsonData result;
 
@@ -169,11 +180,13 @@ void controllerTask(void *parameter) {
         xSemaphoreGive(srvMutex);
       }
 
+      // Lê o valor da luinosidade
+      if (xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
+        localLdr = ldrValue;
+        xSemaphoreGive(ldrMutex);
+      }
 
-
-
-
-      Serial.printf("Enviando -> Pot: %d | Tmp: %d | Bzz: %d | Hps: %d | Srv: %d | Btn: %d | R: %d G: %d B: %d\n", localPot, localTmp, localBzz, localHps, localSrv, localBtn, localRed, localGreen, localBlue);
+      Serial.printf("Enviando -> Pot: %d | Tmp: %d | LDR: %d | Bzz: %d | Hps: %d | Srv: %d | Btn: %d | R: %d G: %d B: %d\n", localPot, localTmp, localLdr, localBzz, localHps, localSrv, localBtn, localRed, localGreen, localBlue);
 
       // Envio para o Firebase
       bool ok = true;
@@ -186,6 +199,7 @@ void controllerTask(void *parameter) {
       ok &= Firebase.setInt(fbdo, "/sensor/led/blue", localBlue);
       ok &= Firebase.setInt(fbdo, "/sensor/vida", localHps);
       ok &= Firebase.setInt(fbdo, "/sensor/servo", localSrv);
+      ok &= Firebase.setInt(fbdo, "/sensor/luminosidade", localLdr);
 
       if (ok) {
         Serial.println("Dados enviados com sucesso!");
@@ -237,6 +251,12 @@ void controllerTask(void *parameter) {
         if (json.get(result, "temperatura") && xSemaphoreTake(tmpMutex, portMAX_DELAY)) {
           tmpValue = result.floatValue;
           xSemaphoreGive(tmpMutex);
+        }
+
+        // Luminosidade
+        if (json.get(result, "luminosidade") && xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
+          ldrValue = result.intValue;
+          xSemaphoreGive(ldrMutex);
         }
 
         // Vida
@@ -378,6 +398,29 @@ void readTempTask(void *parameter) {
   }
 }
 
+void playHealthUpMelody() {
+  int melody[] = {523, 659, 784, 1046}; // C5, E5, G5, C6
+  int duration = 120;
+
+  for (int i = 0; i < 4; i++) {
+    ledcWriteTone(3, melody[i]);
+    vTaskDelay(duration / portTICK_PERIOD_MS);
+  }
+
+  ledcWriteTone(3, 0); // desliga o som
+}
+
+void playHealthDownMelody() {
+  int melody[] = {880, 740, 660, 400, 300, 440}; // notas em Hz
+  int durations[] = {100, 120, 150, 120, 100, 300};
+
+  for (int i = 0; i < 6; i++) {
+    ledcWriteTone(3, melody[i]);
+    vTaskDelay(durations[i] / portTICK_PERIOD_MS);
+  }
+
+  ledcWriteTone(3, 0); // silencia
+}
 
 void updateHealthLEDs(int hp) {
   digitalWrite(RED_HEALTH_PIN, LOW);
@@ -417,12 +460,14 @@ void healthControlTask(void *parameter) {
 
     // Aumenta vida
     if (currentAddState && !lastAddState) {
-      if (xSemaphoreTake(hpsMutex, portMAX_DELAY)) {
-        healthPoints = min(100, healthPoints + 10);
-        Serial.printf("Vida aumentada: %d\n", healthPoints);
-        updateHealthLEDs(healthPoints); // atualiza LEDs
-        xSemaphoreGive(hpsMutex);
-      }
+    if (xSemaphoreTake(hpsMutex, portMAX_DELAY)) {
+      healthPoints = min(100, healthPoints + 10);
+      Serial.printf("Vida aumentada: %d\n", healthPoints);
+      updateHealthLEDs(healthPoints);
+      playHealthUpMelody(); // 🎵 toca a música
+      xSemaphoreGive(hpsMutex);  
+    }
+
     }
 
     // Diminui vida
@@ -431,6 +476,7 @@ void healthControlTask(void *parameter) {
         healthPoints = max(0, healthPoints - 10);
         Serial.printf("Vida diminuída: %d\n", healthPoints);
         updateHealthLEDs(healthPoints); // atualiza LEDs
+        playHealthDownMelody();
         xSemaphoreGive(hpsMutex);
       }
     }
@@ -442,6 +488,20 @@ void healthControlTask(void *parameter) {
   }
 }
 
+void readLightTask(void *parameter) {
+  int raw;
+
+  while (true) {
+    raw = analogRead(LDR_PIN); // 0 a 4095
+
+    if (xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
+      lightValue = raw;
+      xSemaphoreGive(ldrMutex);
+    }
+
+    vTaskDelay(500 / portTICK_PERIOD_MS); // leitura a cada 0,5s
+  }
+}
 
 void servoTask(void *parameter) {
   int localServo = 0;
@@ -583,6 +643,11 @@ void setup() {
   // myServo.write(srvValue); // 3) Defina a posição inicial:
 
 
+  pinMode(LDR_PIN, INPUT);
+
+  pinMode(LANTERNA_PIN, OUTPUT);
+
+
   // Criação dos mutexes
   frbMutex = xSemaphoreCreateMutex();
   conMutex = xSemaphoreCreateMutex();
@@ -593,6 +658,7 @@ void setup() {
   tmpMutex = xSemaphoreCreateMutex();
   hpsMutex = xSemaphoreCreateMutex();
   srvMutex = xSemaphoreCreateMutex();
+  ldrMutex = xSemaphoreCreateMutex();
 
 
   // Cria a task que lê o controle_mode no core 0
@@ -641,7 +707,6 @@ void setup() {
     0
   );
 
-
   // Cria a thread para o LED RGB no core 0
   xTaskCreatePinnedToCore(
     rgbLedTask,       // função
@@ -674,7 +739,15 @@ void setup() {
     1
   );
 
-
+  xTaskCreatePinnedToCore(
+    readLightTask,
+    "ReadLightTask",
+    4096,
+    NULL,
+    1,
+    NULL,
+    0
+  );
 
   xTaskCreatePinnedToCore(
     servoTask,     // Função da task
@@ -688,7 +761,6 @@ void setup() {
 
 
   
-  
 }
 
 void loop() {
@@ -700,7 +772,8 @@ void loop() {
   if (!controlModeEnabled) {
     if (xSemaphoreTake(potMutex, portMAX_DELAY)) {
       localPot = potValue;
-      // Serial.printf("Pot lido: %d\n", localPot);
+
+      Serial.printf("Pot lido: %d\n", localPot);
       xSemaphoreGive(potMutex);
     }
   
@@ -722,7 +795,6 @@ void loop() {
       xSemaphoreGive(bzzMutex);
     }
 
-
     angulo = map(localPot, 0, 4095, 0, 180);  // Mapeia para 0 a 180 graus
     // Serial.printf("Pot: %d | Angulo: %d\n", localPot, angulo);
     if (xSemaphoreTake(srvMutex, portMAX_DELAY)) {
@@ -730,11 +802,20 @@ void loop() {
       xSemaphoreGive(srvMutex);
     }
   
+    if (xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
+      Serial.printf("Luminosidade: %d\n", lightValue); // quanto menor, mais escuro
+      xSemaphoreGive(ldrMutex);
+      if (lightValue < 700 && healthPoints > 0) {
+        digitalWrite(LANTERNA_PIN, HIGH); // acende a lanterna
+      } else {
+        digitalWrite(LANTERNA_PIN, LOW);  // apaga a lanterna
+      }
+
+    xSemaphoreGive(ldrMutex);
+    }
 
     delay(1000); // printa a cada 1 segundo
 
   }
-  
-
   
 }
