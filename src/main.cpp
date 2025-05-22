@@ -7,14 +7,14 @@
 
 // #define WIFI_SSID "VIVOFIBRA-7ABE"
 // #define WIFI_SSID "uaifai-brum" // Nome da rede Wi-Fi que será usada
-#define WIFI_SSID "uaifai-tiradentes" // Nome da rede Wi-Fi que será usada
-#define WIFI_PASSWORD "bemvindoaocesar" // Senha da rede Wi-Fi
+// #define WIFI_SSID "uaifai-tiradentes" // Nome da rede Wi-Fi que será usada
+// #define WIFI_PASSWORD "bemvindoaocesar" // Senha da rede Wi-Fi
 
 // #define WIFI_SSID "Cozinha"
 // #define WIFI_PASSWORD "feliciefred" // Senha da rede Wi-Fi
 
-// #define WIFI_SSID "HIRATA" // Nome da rede Wi-Fi que será usada
-// #define WIFI_PASSWORD "tonico123" // Senha da rede Wi-Fi
+#define WIFI_SSID "HIRATA" // Nome da rede Wi-Fi que será usada
+#define WIFI_PASSWORD "tonico123" // Senha da rede Wi-Fi
 
 #define DATABASE_URL "https://test-75680-default-rtdb.firebaseio.com/" // URL do Realtime Database do Firebase
 #define DATABASE_SECRET "SWc4MadC9VEjr2FqUA4nenvtXZDczXkD7Zs3Hq4e" // Token de autenticação legado do Firebase
@@ -71,13 +71,13 @@ bool btnValue = false;
 int redValue = 0;   // valor da cor vermelha (0–255)
 int greenValue = 0; // valor da cor verde (0–255)
 int blueValue = 0;  // valor da cor azul (0–255)
-int tmpValue = 0;
+int tmpValue = 0; // valor da temperatura em Celsius
 int healthPoints = 100; // valor da vida do personagem (0-100)
 bool lastAddState = false;
 bool lastSubState = false;
 int ldrValue = 0;
-int srvValue = 0; // Valor padrão de ângulo para o servo (0 a 180)
-int lightValue = 0;
+int srvValue = 0; // Valor padrão de ângulo para o servo (0-180)
+int lgtValue = 0;
 
 enum EyeEvent {
   EYE_NONE,
@@ -94,9 +94,10 @@ SemaphoreHandle_t bzzMutex; // semáforo para controle de acesso ao buzzer
 SemaphoreHandle_t btnMutex; // semáforo para controle de acesso ao botão
 SemaphoreHandle_t rgbMutex; // semáforo para controle de acesso às cores RGB
 SemaphoreHandle_t tmpMutex; // semáforo para controle de acesso à temperatura
-SemaphoreHandle_t hpsMutex;
+SemaphoreHandle_t hpsMutex; // semáforo para controle de acesso à vida
 SemaphoreHandle_t srvMutex; // Semáforo para controle de acesso ao valor do servo
-SemaphoreHandle_t ldrMutex;  // semáforo para controle de acesso à luminosidade
+SemaphoreHandle_t ldrMutex; // semáforo para controle de acesso à luminosidade
+SemaphoreHandle_t lgtMutex; // semáforo para controle de acesso à lanterna
 
 
 // FUNCTIONS======================
@@ -171,7 +172,7 @@ void controllerTask(void *parameter) {
   bool mode = false;
   bool lastMode = false;
 
-  int localPot, localBzz, localLdr, localBtn, localRed, localGreen, localBlue, localTmp, localHps, localSrv;
+  int localPot, localBzz, localBtn, localRed, localGreen, localBlue, localTmp, localHps, localSrv, localLdr, localLgt;
   FirebaseJson json;
   FirebaseJsonData result;
 
@@ -252,7 +253,13 @@ void controllerTask(void *parameter) {
         xSemaphoreGive(ldrMutex);
       }
 
-      Serial.printf("Enviando -> Pot: %d | Tmp: %d | LDR: %d | Bzz: %d | Hps: %d | Srv: %d | Btn: %d | R: %d G: %d B: %d\n", localPot, localTmp, localLdr, localBzz, localHps, localSrv, localBtn, localRed, localGreen, localBlue);
+      // Lê o valor da lanterna
+      if (xSemaphoreTake(lgtMutex, portMAX_DELAY)) {
+        localLgt = lgtValue;
+        xSemaphoreGive(lgtMutex);
+      }
+
+      Serial.printf("Enviando -> Pot: %d | Tmp: %d | LDR: %d | Bzz: %d | Hps: %d | Srv: %d | Btn: %d | R: %d G: %d B: %d | Lgt: %d\n", localPot, localTmp, localLdr, localBzz, localHps, localSrv, localBtn, localRed, localGreen, localBlue, localLgt);
 
       // Envio para o Firebase
       bool ok = true;
@@ -260,12 +267,13 @@ void controllerTask(void *parameter) {
       ok &= Firebase.setInt(fbdo, "/sensor/temperatura", localTmp);
       ok &= Firebase.setInt(fbdo, "/sensor/buzzer", localBzz);
       ok &= Firebase.setInt(fbdo, "/sensor/botao", localBtn);
-      ok &= Firebase.setInt(fbdo, "/sensor/led/red", localRed);
-      ok &= Firebase.setInt(fbdo, "/sensor/led/green", localGreen);
-      ok &= Firebase.setInt(fbdo, "/sensor/led/blue", localBlue);
       ok &= Firebase.setInt(fbdo, "/sensor/vida", localHps);
       ok &= Firebase.setInt(fbdo, "/sensor/servo", localSrv);
       ok &= Firebase.setInt(fbdo, "/sensor/luminosidade", localLdr);
+      ok &= Firebase.setInt(fbdo, "/sensor/led/red", localRed);
+      ok &= Firebase.setInt(fbdo, "/sensor/led/green", localGreen);
+      ok &= Firebase.setInt(fbdo, "/sensor/led/blue", localBlue);
+      ok &= Firebase.setInt(fbdo, "/sensor/lanterna", localLgt);
 
       if (ok) {
         Serial.println("Dados enviados com sucesso!");
@@ -280,62 +288,94 @@ void controllerTask(void *parameter) {
       if (Firebase.getJSON(fbdo, "/sensor")) {
         json = fbdo.jsonObject();
 
+        // Coleta corretamente os dados do JSON do Firebase seguindo o padrão da primeira linha
+        if (json.get(result, "potenciometro")) localPot = result.intValue;
+        if (json.get(result, "temperatura")) localTmp = result.intValue;
+        if (json.get(result, "buzzer")) localBzz = result.intValue;
+        if (json.get(result, "botao")) localBtn = result.intValue;
+        if (json.get(result, "led/red")) localRed = result.intValue;
+        if (json.get(result, "led/green")) localGreen = result.intValue;
+        if (json.get(result, "led/blue")) localBlue = result.intValue;
+        if (json.get(result, "vida")) localHps = result.intValue;
+        if (json.get(result, "servo")) localSrv = result.intValue;
+        if (json.get(result, "luminosidade")) localLdr = result.intValue;
+        if (json.get(result, "lanterna")) localLgt = result.intValue;
+        
+        Serial.printf("Recebendo <- Pot: %d | Tmp: %d | LDR: %d | Bzz: %d | Hps: %d | Srv: %d | Btn: %d | R: %d G: %d B: %d | Lgt: %d\n", localPot, localTmp, localLdr, localBzz, localHps, localSrv, localBtn, localRed, localGreen, localBlue, localLgt);
+
+
+        vTaskDelay(1 / portTICK_PERIOD_MS); // Aguarda 1 milésimo para garantir que os watchdog respirem
+
+
+
+
         // Potenciômetro
         if (json.get(result, "potenciometro") && xSemaphoreTake(potMutex, portMAX_DELAY)) {
-          potValue = result.intValue;
-          Serial.printf("Pot: %d\n", potValue);
+          potValue = localPot;
+          // Serial.printf("Pot: %d\n", potValue);
           xSemaphoreGive(potMutex);
         }
 
         // Buzzer
         if (json.get(result, "buzzer") && xSemaphoreTake(bzzMutex, portMAX_DELAY)) {
-          bzzValue = result.intValue;
+          bzzValue = localBzz;
           xSemaphoreGive(bzzMutex);
         }
 
         // Botão
         if (json.get(result, "botao") && xSemaphoreTake(btnMutex, portMAX_DELAY)) {
-          btnValue = result.boolValue;
+          btnValue = localBtn;
           xSemaphoreGive(btnMutex);
         }
 
         // LED RGB
         if (json.get(result, "led/red") && xSemaphoreTake(rgbMutex, portMAX_DELAY)) {
-          redValue = result.intValue;
+          redValue = localRed;
           xSemaphoreGive(rgbMutex);
         }
         if (json.get(result, "led/green") && xSemaphoreTake(rgbMutex, portMAX_DELAY)) {
-          greenValue = result.intValue;
+          greenValue = localGreen;
           xSemaphoreGive(rgbMutex);
         }
         if (json.get(result, "led/blue") && xSemaphoreTake(rgbMutex, portMAX_DELAY)) {
-          blueValue = result.intValue;
+          blueValue = localBlue;
           xSemaphoreGive(rgbMutex);
         }
 
         // Temperatura
         if (json.get(result, "temperatura") && xSemaphoreTake(tmpMutex, portMAX_DELAY)) {
-          tmpValue = result.floatValue;
+          tmpValue = localTmp;
           xSemaphoreGive(tmpMutex);
-        }
-
-        // Luminosidade
-        if (json.get(result, "luminosidade") && xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
-          ldrValue = result.intValue;
-          xSemaphoreGive(ldrMutex);
-        }
-
-        // Vida
-        if (json.get(result, "vida") && xSemaphoreTake(hpsMutex, portMAX_DELAY)) {
-          healthPoints = result.intValue;
-          xSemaphoreGive(hpsMutex);
         }
 
         // Servo
         if (json.get(result, "servo") && xSemaphoreTake(srvMutex, portMAX_DELAY)) {
-          srvValue = result.intValue;
+          srvValue = localSrv;
           xSemaphoreGive(srvMutex);
         }
+        
+        // Vida
+        if (json.get(result, "vida") && xSemaphoreTake(hpsMutex, portMAX_DELAY)) {
+          healthPoints = localHps;
+          xSemaphoreGive(hpsMutex);
+        }
+
+        // Luminosidade
+        if (json.get(result, "luminosidade") && xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
+          ldrValue = localLdr;
+          xSemaphoreGive(ldrMutex);
+        }
+
+        // Lanterna
+        if (json.get(result, "lanterna") && xSemaphoreTake(lgtMutex, portMAX_DELAY)) {
+          lgtValue = localLgt;
+          xSemaphoreGive(lgtMutex);
+        }
+        
+
+
+
+
         
 
       } else {
@@ -511,7 +551,7 @@ void readLightTask(void *parameter) {
     raw = analogRead(LDR_PIN); // 0 a 4095
 
     if (xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
-      lightValue = raw;
+      lgtValue = raw;
       xSemaphoreGive(ldrMutex);
     }
 
@@ -693,6 +733,7 @@ void setup() {
   hpsMutex = xSemaphoreCreateMutex();
   srvMutex = xSemaphoreCreateMutex();
   ldrMutex = xSemaphoreCreateMutex();
+  lgtMutex = xSemaphoreCreateMutex();
 
 
   // Cria a task que lê o controle_mode no core 0
@@ -820,8 +861,7 @@ void loop() {
   if (!controlModeEnabled) {
     if (xSemaphoreTake(potMutex, portMAX_DELAY)) {
       localPot = potValue;
-
-      Serial.printf("Pot lido: %d\n", localPot);
+      // Serial.printf("Pot lido: %d\n", localPot);
       xSemaphoreGive(potMutex);
     }
   
@@ -851,9 +891,9 @@ void loop() {
     }
   
     if (xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
-      Serial.printf("Luminosidade: %d\n", lightValue); // quanto menor, mais escuro
+      Serial.printf("Luminosidade: %d\n", lgtValue); // quanto menor, mais escuro
       xSemaphoreGive(ldrMutex);
-      if (lightValue < 700 && healthPoints > 0) {
+      if (lgtValue < 700 && healthPoints > 0) {
         digitalWrite(LANTERNA_PIN, HIGH); // acende a lanterna
       } else {
         digitalWrite(LANTERNA_PIN, LOW);  // apaga a lanterna
