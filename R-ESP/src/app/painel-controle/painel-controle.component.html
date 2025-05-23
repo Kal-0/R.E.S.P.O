@@ -1,0 +1,215 @@
+<div class="painel-grid">
+  <!-- Control Mode Button -->
+  <div class="painel-box control-mode">
+    <h3>Control Mode</h3>
+    <div class="botoes">
+      <button 
+      class="botao unico" 
+      (click)="onSpecialButtonClick('controlMode')"
+      [class.active]="controls.controlMode.value"
+    >
+      {{ controls.controlMode.value ? 'Ligado' : 'Desligado' }}
+    </button>
+  
+    </div>
+  </div>
+
+  <!-- Potenciômetro Control -->
+  <div class="painel-box potenciometro">
+    <h3>Potenciômetro</h3>
+    <span class="valor">{{ controls.potenciometro.value }}{{ controls.potenciometro.unit }}</span>
+    <div class="botoes">
+      <button 
+        class="botao negativo"
+        (mousedown)="onButtonDown('potenciometro', 'menos')"
+        (mouseup)="onButtonUp('potenciometro', 'menos')"
+        (mouseleave)="onButtonUp('potenciometro', 'menos')"
+        (touchstart)="onButtonDown('potenciometro', 'menos')"
+        (touchend)="onButtonUp('potenciometro', 'menos')"
+        >-</button>
+        <input
+          type="number"
+          [(ngModel)]="potenciometroDigitado"
+          (keyup.enter)="onInputSubmit('potenciometro')"
+          min="0"
+          max="4095"
+          class="input-digitado"
+          />
+        <button 
+        class="botao positivo"
+        (mousedown)="onButtonDown('potenciometro', 'mais')"
+        (mouseup)="onButtonUp('potenciometro', 'mais')"
+        (mouseleave)="onButtonUp('potenciometro', 'mais')"
+        (touchstart)="onButtonDown('potenciometro', 'mais')"
+        (touchend)="onButtonUp('potenciometro', 'mais')"
+        >+</button>
+      </div>
+    </div>
+    
+    
+    <!-- Temperatura Control -->
+    <div class="painel-box temperatura">
+      <h3>Temperatura</h3>
+      <span class="valor">{{ controls.temperatura.value }}{{ controls.temperatura.unit }}</span>
+    <div class="botoes">
+      <button 
+        class="botao negativo"
+        (mousedown)="onButtonDown('temperatura', 'menos')"
+        (mouseup)="onButtonUp('temperatura', 'menos')"
+        (mouseleave)="onButtonUp('temperatura', 'menos')"
+        (touchstart)="onButtonDown('temperatura', 'menos')"
+        (touchend)="onButtonUp('temperatura', 'menos')"
+      >-</button>
+      <input
+        type="number"
+        [(ngModel)]="temperaturaDigitado"
+        (keyup.enter)="onInputSubmit('temperatura')"
+        min="0"
+        max="100"
+        class="input-digitado"
+        />
+      <button 
+        class="botao positivo"
+        (mousedown)="onButtonDown('temperatura', 'mais')"
+        (mouseup)="onButtonUp('temperatura', 'mais')"
+        (mouseleave)="onButtonUp('temperatura', 'mais')"
+        (touchstart)="onButtonDown('temperatura', 'mais')"
+        (touchend)="onButtonUp('temperatura', 'mais')"
+      >+</button>
+    </div>
+  </div>
+
+  <!-- Frequência Control -->
+  <div class="painel-box frequencia">
+    <h3>Frequência</h3>
+    <span class="valor">{{ controls.frequencia.value }}{{ controls.frequencia.unit }}</span>
+    <div class="botoes">
+      <button 
+        class="botao negativo"
+        (mousedown)="onButtonDown('frequencia', 'menos')"
+        (mouseup)="onButtonUp('frequencia', 'menos')"
+        (mouseleave)="onButtonUp('frequencia', 'menos')"
+        (touchstart)="onButtonDown('frequencia', 'menos')"
+        (touchend)="onButtonUp('frequencia', 'menos')"
+      >-</button>
+        <input
+          type="number"
+          [(ngModel)]="frequenciaDigitado"
+          (keyup.enter)="onInputSubmit('frequencia')"
+          min="0"
+          max="500"
+          class="input-digitado"
+        />
+      <button 
+        class="botao positivo"
+        (mousedown)="onButtonDown('frequencia', 'mais')"
+        (mouseup)="onButtonUp('frequencia', 'mais')"
+        (mouseleave)="onButtonUp('frequencia', 'mais')"
+        (touchstart)="onButtonDown('frequencia', 'mais')"
+        (touchend)="onButtonUp('frequencia', 'mais')"
+      >+</button>
+    </div>
+  </div>
+
+  <!-- Vida Control -->
+  <div class="painel-box vida">
+    <h3>Vida</h3>
+    <span class="valor">{{ controls.vida.value }}{{ controls.vida.unit }}</span>
+    <div class="botoes">
+      <button 
+        class="botao negativo"
+        (mousedown)="onButtonDown('vida', 'menos')"
+        (mouseup)="onButtonUp('vida', 'menos')"
+        (mouseleave)="onButtonUp('vida', 'menos')"
+        (touchstart)="onButtonDown('vida', 'menos')"
+        (touchend)="onButtonUp('vida', 'menos')"
+      >-</button>
+        <input
+          type="number"
+          [(ngModel)]="vidaDigitado"
+          (keyup.enter)="onInputSubmit('vida')"
+          min="0"
+          max="100"
+          class="input-digitado"
+        />
+      <button 
+        class="botao positivo"
+        (mousedown)="onButtonDown('vida', 'mais')"
+        (mouseup)="onButtonUp('vida', 'mais')"
+        (mouseleave)="onButtonUp('vida', 'mais')"
+        (touchstart)="onButtonDown('vida', 'mais')"
+        (touchend)="onButtonUp('vida', 'mais')"
+      >+</button>
+    </div>
+  </div>
+
+  <!-- Motor Control -->
+  <div class="painel-box boca">
+    <h3>Boca</h3>
+    <span class="valor">{{ controls.motor.value }}{{ controls.motor.unit }}</span>
+    <div class="botoes">
+      <button 
+        class="botao negativo"
+        (mousedown)="onButtonDown('motor', 'menos')"
+        (mouseup)="onButtonUp('motor', 'menos')"
+        (mouseleave)="onButtonUp('motor', 'menos')"
+        (touchstart)="onButtonDown('motor', 'menos')"
+        (touchend)="onButtonUp('motor', 'menos')"
+      >-</button>
+        <input
+          type="number"
+          [(ngModel)]="motorDigitado"
+          (keyup.enter)="onInputSubmit('motor')"
+          min="0"
+          max="180"
+          class="input-digitado"
+        />
+      <button 
+        class="botao positivo"
+        (mousedown)="onButtonDown('motor', 'mais')"
+        (mouseup)="onButtonUp('motor', 'mais')"
+        (mouseleave)="onButtonUp('motor', 'mais')"
+        (touchstart)="onButtonDown('motor', 'mais')"
+        (touchend)="onButtonUp('motor', 'mais')"
+      >+</button>
+    </div>
+  </div>
+
+  <!-- Lanterna Control -->
+    <div class="painel-box luminosidade">
+    <h3>Lanterna</h3>
+    <span class="valor">{{ controls.lanterna.value }}{{ controls.lanterna.unit }}</span>
+    <div class="botoes">
+      <button 
+        class="botao negativo"
+        (mousedown)="onButtonDown('lanterna', 'menos')"
+        (mouseup)="onButtonUp('lanterna', 'menos')"
+        (mouseleave)="onButtonUp('lanterna', 'menos')"
+        (touchstart)="onButtonDown('lanterna', 'menos')"
+        (touchend)="onButtonUp('lanterna', 'menos')"
+      >-</button>
+        <input
+          type="number"
+          [(ngModel)]="lanternaDigitado"
+          (keyup.enter)="onInputSubmit('lanterna')"
+          min="0"
+          max="180"
+          class="input-digitado"
+        />
+      <button 
+        class="botao positivo"
+        (mousedown)="onButtonDown('lanterna', 'mais')"
+        (mouseup)="onButtonUp('lanterna', 'mais')"
+        (mouseleave)="onButtonUp('lanterna', 'mais')"
+        (touchstart)="onButtonDown('lanterna', 'mais')"
+        (touchend)="onButtonUp('lanterna', 'mais')"
+      >+</button>
+    </div>
+  </div>
+
+  
+</div>
+<div class="painel-box led" [style.border-left]="'5px solid ' + corPainelRGB">
+  <h3>Olhos</h3>
+  <app-led-rgb (corMudou)="atualizarCorRGB($event)"></app-led-rgb>
+</div>
