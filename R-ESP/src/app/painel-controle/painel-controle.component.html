@@ -206,10 +206,8 @@
       >+</button>
     </div>
   </div>
-
-  
-</div>
-<div class="painel-box led" [style.border-left]="'5px solid ' + corPainelRGB">
-  <h3>Olhos</h3>
-  <app-led-rgb (corMudou)="atualizarCorRGB($event)"></app-led-rgb>
+  <div class="painel-box led" [style.border-left]="'5px solid ' + corPainelRGB">
+      <h3>Olhos</h3>
+     <app-led-rgb (corMudou)="atualizarCorRGB($event)"></app-led-rgb>
+  </div>
 </div>

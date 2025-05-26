@@ -82,7 +82,7 @@ export class PainelControleComponent implements OnDestroy {
       min: 0, 
       max: 1000, 
       step: 10, 
-      path: 'sensor/frequencia',
+      path: 'sensor/buzzer',
       unit: 'Hz'
     },
     controlMode: {

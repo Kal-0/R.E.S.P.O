@@ -259,6 +259,11 @@ input::-webkit-inner-spin-button {
   to { transform: rotate(360deg); }
 }
 
+
+.painel-box.led {
+  grid-column: span 2;
+}
+
 .potenciometro   { border-left: 5px solid red; }
 .temperatura { border-left: 5px solid rgb(0, 170, 255); }
 .frequencia { border-left: 5px solid orange; }
