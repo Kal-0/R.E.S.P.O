@@ -1,0 +1,99 @@
+/* You can add global styles to this file, and also import other style files */
+
+/* Reset and base styles */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Enable text selection for specific elements where it makes sense */
+input, 
+textarea, 
+[contenteditable="true"] {
+  user-select: text;
+}
+
+html {
+  font-size: 16px; /* Base font size for rem units */
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: linear-gradient(to bottom, #000000, #06e1c0);
+  background-attachment: fixed; /* Prevents background from scrolling */
+  font-family: Arial, sans-serif;
+  color: #ffffff;
+  line-height: 1.6;
+  overflow-x: hidden; /* Prevent horizontal scroll */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Responsive typography */
+h1 { font-size: clamp(2rem, 5vw, 3rem); }
+h2 { font-size: clamp(1.5rem, 4vw, 2.5rem); }
+h3 { font-size: clamp(1.2rem, 3vw, 2rem); }
+p { font-size: clamp(1rem, 2vw, 1.2rem); }
+
+/* Container for content */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* Media Queries */
+@media (max-width: 768px) {
+  html {
+    font-size: 14px; /* Slightly smaller base font size for mobile */
+  }
+  
+  .container {
+    padding: 0 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  html {
+    font-size: 12px;
+  }
+  
+  body {
+    background: linear-gradient(to bottom, #000000 0%, #06e1c0 120%); /* Adjusted gradient for mobile */
+  }
+}
+
+/* Improve touch targets on mobile */
+@media (hover: none) {
+  button,
+  [role="button"],
+  a.button {
+    min-height: 44px; /* Minimum touch target size */
+    min-width: 44px;
+  }
+}
+
+/* High contrast and reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-contrast: high) {
+  :root {
+    --contrast-background: #000000;
+    --contrast-text: #ffffff;
+  }
+}
+  

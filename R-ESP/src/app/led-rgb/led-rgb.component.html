@@ -1,0 +1,18 @@
+<div class="rgb-container">
+  <div class="rgb-box">
+    <label for="r"><b>R:</b></label>
+    <input id="r" type="number" [(ngModel)]="r" (input)="atualizar()" min="0" max="255" />
+  </div>
+
+  <div class="rgb-box">
+    <label for="g"><b>G:</b></label>
+    <input id="g" type="number" [(ngModel)]="g" (input)="atualizar()" min="0" max="255" />
+  </div>
+
+  <div class="rgb-box">
+    <label for="b"><b>B:</b></label>
+    <input id="b" type="number" [(ngModel)]="b" (input)="atualizar()" min="0" max="255" />
+  </div>
+
+  <div class="rgb-preview" [style.background]="corHex"></div>
+</div>

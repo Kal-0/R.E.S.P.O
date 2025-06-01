@@ -1,0 +1,23 @@
+<div class="app-container">
+  <!-- Firebase Connection Status -->
+  <!--<div class="status-container">
+    <div class="firebase-status" [class.connected]="isConnected">
+      <span *ngIf="isConnected">✅ Connected to Firebase</span>
+      <span *ngIf="!isConnected && !connectionError">🔃 Connecting to Firebase...</span>
+      <span *ngIf="connectionError" class="error">❌ Firebase Error: {{ connectionError }}</span>
+    </div> -->
+
+    <!-- Authentication Status -->
+     <!--
+  </div> 
+    <div class="auth-status" [class.authenticated]="user">
+      <span *ngIf="user">👤 User ID: {{ user.uid }}</span>
+      <span *ngIf="!user && !authError">🔐 Signing in anonymously...</span>
+      <span *ngIf="authError" class="error">❌ Auth Error: {{ authError }}</span>
+    </div>
+  -->
+  <!-- Main Content -->
+  <div class="content">
+    <router-outlet></router-outlet>
+  </div>
+</div>
