@@ -1,6 +1,6 @@
 # 🤖 RESPO: Murphy, o Robô inspirado no jogo REPO
 
-**RESPO (REPO + ESP)** é um projeto de robótica interativa inspirado no universo do jogo de terror _REPO_, uma experiência cooperativa no estilo _Lethal Company_. Nosso robô, carinhosamente chamado de **Murphy**, homenageia a **Lei de Murphy** — pois, durante o desenvolvimento, tudo que podia dar errado… deu! 😅
+**RESPO (REPO + ESP)** é um projeto de robótica interativa inspirado no universo do jogo de terror *REPO*, uma experiência cooperativa no estilo *Lethal Company*. Nosso robô, carinhosamente chamado de **Murphy**, homenageia a **Lei de Murphy** — pois, durante o desenvolvimento, tudo que podia dar errado… deu! 😅
 
 Murphy é mais do que um robô: é uma criatura interativa que reage ao ambiente e aos comandos do usuário, replicando de forma física a experiência social e caótica dos personagens do jogo.
 
@@ -43,8 +43,6 @@ Além das funcionalidades físicas, o robô **Murphy** permite **monitoramento c
 - Esses dados são **sincronizados com o Firebase** automaticamente.
 - Sempre que uma atualização é enviada ao Firebase, a lista completa dos dados é **printada no terminal serial**, facilitando o **debug**, **registro histórico** ou **monitoramento remoto**.
 
-Essa integração torna o Murphy não só interativo, mas também observável — como qualquer bom experimento de laboratório… ou criatura prestes a ganhar consciência. 👀
-
 ---
 
 ## 🔧 Componentes Utilizados
@@ -70,11 +68,6 @@ Essa integração torna o Murphy não só interativo, mas também observável �
 
 ---
 
-## 📸 Imagens e Demonstrações
-[Inclua aqui GIFs, vídeos ou imagens de alta qualidade do robô em ação]
-
----
-
 ## 🚀 Próximos Passos
 
 - [ ] Adicionar **reconhecimento de fala básico** para comandos como “Murphy, fala!” ou “Murphy, acende a luz!”
@@ -84,47 +77,11 @@ Essa integração torna o Murphy não só interativo, mas também observável �
 - [ ] Substituir **alimentação USB por bateria LiPo com carregamento via cabo USB-C**
 
 ---
-## Equipe
-<table>
-  <td align="center">
-    <a href="https://github.com/Kal-0">
-      <img src="https://avatars.githubusercontent.com/u/106926790?v=4" width="200px;" alt="Foto Caio"/><br>
-      <sub>
-        <b>Caio Hirata</b>
-      </sub>
-    </a>
-  </td>
-  <td align="center">
-    <a href="https://github.com/DiogoHMC">
-      <img src="https://avatars.githubusercontent.com/u/116087739?v=4" width="200px;" alt="Foto Diogo"/><br>
-        <sub>
-          <b>Diogo Henrique</b>
-        </sub>
-      </a>
-  </td>
-  <td align="center">
-    <a href="https://github.com/pedro-coelho-dr">
-      <img src="https://avatars.githubusercontent.com/u/111138996?v=4" width="200px;" alt="Foto Pedro"/><br>
-        <sub>
-          <b>Pedro Coelho</b>
-        </sub>
-      </a>
-    </td>
-      <td align="center">
-    <a href="https://github.com/theomilll">
-      <img src="https://avatars.githubusercontent.com/u/99195030?v=4" width="200px;" alt="Foto Pedro"/><br>
-        <sub>
-          <b>Theo Moura</b>
-        </sub>
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/virnaamaral">
-        <img src="https://avatars.githubusercontent.com/u/116957619?v=4" width="200px;" alt="Foto Virna"/><br>
-          <sub>
-            <b>Virna Amaral</b>
-          </sub>
-      </a>
-  </td>
-</table>
-<br>
+
+## 👥 Equipe
+
+- [Caio Hirata](https://github.com/Kal-0)
+- [Diogo Henrique](https://github.com/DiogoHMC)
+- [Pedro Coelho](https://github.com/pedro-coelho-dr)
+- [Theo Moura](https://github.com/theomilll)
+- [Virna Amaral](https://github.com/virnaamaral)
