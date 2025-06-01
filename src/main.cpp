@@ -6,8 +6,8 @@
 #include "driver/ledc.h"
 
 // #define WIFI_SSID "VIVOFIBRA-7ABE"
-// #define WIFI_SSID "uaifai-brum" // Nome da rede Wi-Fi que será usada
-#define WIFI_SSID "uaifai-tiradentes" // Nome da rede Wi-Fi que será usada
+// #define WIFI_SSID "uaifai-tiradentes" // Nome da rede Wi-Fi que será usada
+#define WIFI_SSID "uaifai-brum" // Nome da rede Wi-Fi que será usada
 #define WIFI_PASSWORD "bemvindoaocesar" // Senha da rede Wi-Fi
 
 // #define WIFI_SSID "Cozinha"
@@ -23,43 +23,43 @@
 #define POT_PIN 34 // ou qualquer pino analógico disponível no seu ESP32
 
 // Pino digital com suporte a PWM
-#define BUZZER_PIN 33 
+#define BUZZER_PIN 33
 
 // Pino digital válido para o botão
-// #define BUTTON_PIN 32 
+// #define BUTTON_PIN 32
 
 // Pinos conectados ao LED RGB
-#define RED_PIN 25
-#define GREEN_PIN 26
-#define BLUE_PIN 27
+#define RED_PIN 27
+#define GREEN_PIN 14
+#define BLUE_PIN 12
 
 #define TEMP_PIN 35
 
 // Pino digital para o botão verde (adicionar vida)
-#define BTN_ADD_PIN 16
+#define BTN_ADD_PIN 22
 
 // Pino digital para o botão vermelho (remover vida)
-#define BTN_SUB_PIN 17
+#define BTN_SUB_PIN 23
 
 // Pinos digitais para o sequencial de leds que representa a vida
 
-#define RED_HEALTH_PIN 0
-#define YELLOW_HEALTH_PIN 2
-#define GREEN1_HEALTH_PIN 21
-#define GREEN2_HEALTH_PIN 22
-#define GREEN3_HEALTH_PIN 23
+#define RED_HEALTH_PIN 4
+#define YELLOW_HEALTH_PIN 5
+#define GREEN1_HEALTH_PIN 18
+#define GREEN2_HEALTH_PIN 19
+#define GREEN3_HEALTH_PIN 21
 
 // Pino ao qual o servo está conectado
-#define SERVO_PIN 18
+#define SERVO_PIN 13
 
 // Pino para o sensor de luminosidade LDR
 #define LDR_PIN 32
 
-// Pino para o sensor de luminosidade 
-#define LANTERNA_PIN 15
+// Pino para o sensor de luminosidade
+#define LANTERNA_PIN 26
 
 FirebaseData fbdo; // Objeto para manipulação de dados com o Firebase
-FirebaseAuth auth; // Estrutura usada para autenticação (não usada aqui pois estamos usando token legado)
+FirebaseAuth auth; // Estrutura usada para autenticação (não usadaj aqui pois estamos usando token legado)
 FirebaseConfig config; // Estrutura usada para configuração do Firebase
 // Servo myServo; // Objeto Servo
 
@@ -78,6 +78,7 @@ bool lastSubState = false;
 int ldrValue = 0;
 int srvValue = 0; // Valor padrão de ângulo para o servo (0 a 180)
 int lightValue = 0;
+bool servoCtrlFlag = false;
 
 enum EyeEvent {
   EYE_NONE,
@@ -105,17 +106,41 @@ void playHealthUpMelody() {
   int melody[] = {523, 659, 784, 1046}; // C5, E5, G5, C6
   int duration = 120;
 
+  servoCtrlFlag = true; // Ativa o controle do servo
+  if (xSemaphoreTake(srvMutex, portMAX_DELAY)) {
+    srvValue = 90; // Atualiza o valor do --9
+    xSemaphoreGive(srvMutex);
+  }
+
+  delay(500);
+
   for (int i = 0; i < 4; i++) {
     ledcWriteTone(3, melody[i]);
     vTaskDelay(duration / portTICK_PERIOD_MS);
   }
 
   ledcWriteTone(3, 0); // desliga o som
+  delay(500);
+
+  if (xSemaphoreTake(srvMutex, portMAX_DELAY)) {
+    srvValue = 0; // Reseta o valor do servo
+    xSemaphoreGive(srvMutex);
+  }
+
+  servoCtrlFlag = false; // Desativa o controle do servo
 }
 
 void playHealthDownMelody() {
   int melody[] = {880, 740, 660, 400, 300, 440}; // notas em Hz
   int durations[] = {100, 120, 150, 120, 100, 300};
+
+  servoCtrlFlag = true; // Ativa o controle do servo
+  if (xSemaphoreTake(srvMutex, portMAX_DELAY)) {
+    srvValue = 90; // Atualiza o valor do servo
+    xSemaphoreGive(srvMutex);
+  }
+
+  delay(500);
 
   for (int i = 0; i < 6; i++) {
     ledcWriteTone(3, melody[i]);
@@ -123,6 +148,14 @@ void playHealthDownMelody() {
   }
 
   ledcWriteTone(3, 0); // silencia
+  delay(500);
+
+  if (xSemaphoreTake(srvMutex, portMAX_DELAY)) {
+    srvValue = 0; // Reseta o valor do servo
+    xSemaphoreGive(srvMutex);
+  }
+
+  servoCtrlFlag = false; // Desativa o controle do servo
 }
 
 void updateHealthLEDs(int hp) {
@@ -336,7 +369,7 @@ void controllerTask(void *parameter) {
           srvValue = result.intValue;
           xSemaphoreGive(srvMutex);
         }
-        
+
 
       } else {
         Serial.printf("Erro ao ler JSON: %s\n", fbdo.errorReason().c_str());
@@ -357,15 +390,15 @@ void readPotTask(void *parameter) {
 
     if (!controlModeEnabled) {
       value = analogRead(POT_PIN); // lê valor analógico (0 a 4095)
-    
+
 
       if (xSemaphoreTake(potMutex, portMAX_DELAY)) {
         potValue = value; // atualiza valor global
         xSemaphoreGive(potMutex);
       }
-      
+
     }
-      
+
     vTaskDelay(100 / portTICK_PERIOD_MS); // espera 100ms
   }
 }
@@ -374,7 +407,7 @@ void readPotTask(void *parameter) {
 void buzzerTask(void *parameter) {
   int localBzz;
 
-  while (true) { 
+  while (true) {
 
     if (xSemaphoreTake(bzzMutex, portMAX_DELAY)) {
       localBzz = bzzValue;
@@ -397,15 +430,15 @@ void buzzerTask(void *parameter) {
 
 //       localBtn = !digitalRead(BUTTON_PIN); // inverte o valor (pressionado = 1)
 //       // Serial.printf("Botão lido: %d\n", rawBtn);
-      
+
 
 //       if (xSemaphoreTake(btnMutex, portMAX_DELAY)) {
-//         btnValue = localBtn; 
+//         btnValue = localBtn;
 //         xSemaphoreGive(btnMutex);
 //       }
 
 //     }
-      
+
 //     vTaskDelay(100 / portTICK_PERIOD_MS); // debounce simples (100 ms)
 //   }
 // }
@@ -423,7 +456,7 @@ void rgbLedTask(void *parameter) {
       b = blueValue;
       xSemaphoreGive(rgbMutex);
     }
-    
+
 
     // Aplica PWM com os valores lidos
     ledcWrite(0, r); // canal 0 -> vermelho
@@ -451,7 +484,7 @@ void readTempTask(void *parameter) {
 
       // Estimativa empírica da temperatura com base no módulo LM393 + NTC
       temperatureC = 77.5 - (voltage * 100.0);
-      
+
       if (xSemaphoreTake(tmpMutex, portMAX_DELAY)) {
         tmpValue = (int)temperatureC; // arredonda para int
         xSemaphoreGive(tmpMutex);
@@ -479,7 +512,7 @@ void healthControlTask(void *parameter) {
       EyeEvent evt = EYE_BLINK_GREEN;
       xQueueSend(eyeEventQueue, &evt, 0);
       playHealthUpMelody(); // 🎵 toca a música
-      xSemaphoreGive(hpsMutex);  
+      xSemaphoreGive(hpsMutex);
     }
 
     }
@@ -522,6 +555,7 @@ void readLightTask(void *parameter) {
 void servoTask(void *parameter) {
   int localServo = 0;
   int lastPosition = 0;
+  bool buttonFlag = false; // Flag para indicar se o botão foi pressionado
 
   while (true) {
 
@@ -533,30 +567,29 @@ void servoTask(void *parameter) {
       xSemaphoreGive(srvMutex);
     }
     // Serial.printf("Servo: %d\n", localServo);
-    
+
     // Garante que o valor está dentro dos limites válidos do servo
-    localServo = constrain(localServo, 9, 180);
+    localServo = constrain(localServo, 9, 90);
     // Serial.printf("Servo (constrained): %d\n", localServo);
-
-
-
 
     // Atualiza o valor do servo apenas se houver mudança
     if (localServo != lastPosition) {
       // myServo.write(localServo);
-      
 
-      // Converte o valor do servo (0 a 180) para o valor de pulso (500 a 2400 µs)
-      uint32_t pulse = map(localServo, 0, 180, 500, 2400);  // µs
+      if(buttonFlag == false){
+        // Converte o valor do servo (0 a 180) para o valor de pulso (500 a 2400 µs)
+        uint32_t pulse = map(localServo, 0, 180, 500, 2400);  // µs
 
-      // Converte µs para ticks de 16-bit em 50Hz:
-      //   tick = pulse (µs) / (1e6 / 50) * 2^16
-      uint32_t tick = (uint64_t)pulse * (1<<16) * 50 / 1000000;
+        // Converte µs para ticks de 16-bit em 50Hz:
+        //   tick = pulse (µs) / (1e6 / 50) * 2^16
+        uint32_t tick = (uint64_t)pulse * (1<<16) * 50 / 1000000;
 
-      // Converte ticks para duty cycle (0 a 65535)
-      ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, tick);
-      // Atualiza o duty cycle
-      ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+        // Converte ticks para duty cycle (0 a 65535)
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, tick);
+        // Atualiza o duty cycle
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+      }
+
     }
 
     vTaskDelay(1000 / portTICK_PERIOD_MS); // atualiza a cada 100ms
@@ -621,7 +654,7 @@ void setup() {
 
   pinMode(POT_PIN, INPUT); // define pino como entrada
 
-  // PWM para o buzzer 
+  // PWM para o buzzer
   ledcSetup(3, 2000, 8); // 2kHz, 8 bits
   ledcAttachPin(BUZZER_PIN, 3);
 
@@ -806,8 +839,6 @@ void setup() {
     NULL,
     1
   );
-  
-  setEyeColor(255, 255, 255); // cor branca inicial
 
 }
 
@@ -824,12 +855,12 @@ void loop() {
       Serial.printf("Pot lido: %d\n", localPot);
       xSemaphoreGive(potMutex);
     }
-  
+
     // if (xSemaphoreTake(hpsMutex, portMAX_DELAY)) {
     //   Serial.printf("Vida atual: %d\n", healthPoints);
     //   xSemaphoreGive(hpsMutex);
     // }
-    
+
     // Atualiza valores RGB com base em alguma lógica ou Firebase (exemplo: fixo)
     if (xSemaphoreTake(rgbMutex, portMAX_DELAY)) {
       redValue = (localPot / 16) % 256;   // converte 0–4095 para 0–255
@@ -837,23 +868,25 @@ void loop() {
       blueValue = (redValue + 100) % 256;   // efeito visual diferente
       xSemaphoreGive(rgbMutex);
     }
-    
+
     if (xSemaphoreTake(bzzMutex, portMAX_DELAY)) {
       bzzValue = localPot;
       xSemaphoreGive(bzzMutex);
     }
 
-    angulo = map(localPot, 0, 4095, 0, 180);  // Mapeia para 0 a 180 graus
-    // Serial.printf("Pot: %d | Angulo: %d\n", localPot, angulo);
-    if (xSemaphoreTake(srvMutex, portMAX_DELAY)) {
-      srvValue = angulo; // Atualiza o valor do servo
-      xSemaphoreGive(srvMutex);
+    if (servoCtrlFlag == false){
+      angulo = map(localPot, 0, 4095, 0, 90);  // Mapeia para 0 a 180 graus
+      // Serial.printf("Pot: %d | Angulo: %d\n", localPot, angulo);
+      if (xSemaphoreTake(srvMutex, portMAX_DELAY)) {
+        srvValue = angulo; // Atualiza o valor do servo
+        xSemaphoreGive(srvMutex);
+      }
     }
-  
+
     if (xSemaphoreTake(ldrMutex, portMAX_DELAY)) {
       Serial.printf("Luminosidade: %d\n", lightValue); // quanto menor, mais escuro
       xSemaphoreGive(ldrMutex);
-      if (lightValue < 700 && healthPoints > 0) {
+      if (lightValue < 170 && healthPoints > 0) {
         digitalWrite(LANTERNA_PIN, HIGH); // acende a lanterna
       } else {
         digitalWrite(LANTERNA_PIN, LOW);  // apaga a lanterna
@@ -865,5 +898,5 @@ void loop() {
     delay(1000); // printa a cada 1 segundo
 
   }
-  
+
 }
