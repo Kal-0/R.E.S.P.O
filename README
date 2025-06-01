@@ -1,46 +1,130 @@
+# 🤖 RESPO: Murphy, o Robô inspirado no jogo REPO
 
-This directory is intended for project specific (private) libraries.
-PlatformIO will compile them to static libraries and link into the executable file.
+**RESPO (REPO + ESP)** é um projeto de robótica interativa inspirado no universo do jogo de terror _REPO_, uma experiência cooperativa no estilo _Lethal Company_. Nosso robô, carinhosamente chamado de **Murphy**, homenageia a **Lei de Murphy** — pois, durante o desenvolvimento, tudo que podia dar errado… deu! 😅
 
-The source code of each library should be placed in a separate directory
-("lib/your_library_name/[Code]").
+Murphy é mais do que um robô: é uma criatura interativa que reage ao ambiente e aos comandos do usuário, replicando de forma física a experiência social e caótica dos personagens do jogo.
 
-For example, see the structure of the following example libraries `Foo` and `Bar`:
+---
 
-|--lib
-|  |
-|  |--Bar
-|  |  |--docs
-|  |  |--examples
-|  |  |--src
-|  |     |- Bar.c
-|  |     |- Bar.h
-|  |  |- library.json (optional. for custom build options, etc) https://docs.platformio.org/page/librarymanager/config.html
-|  |
-|  |--Foo
-|  |  |- Foo.c
-|  |  |- Foo.h
-|  |
-|  |- README --> THIS FILE
-|
-|- platformio.ini
-|--src
-   |- main.c
+## 🧠 Funcionalidades Principais
 
-Example contents of `src/main.c` using Foo and Bar:
-```
-#include <Foo.h>
-#include <Bar.h>
+### 🩸 Sistema de Vida com Feedback Visual e Auditivo
+- Dois botões permitem **adicionar ou remover vida**.
+- Os LEDs **verdes e vermelhos** indicam o nível de vida atual.
+- Os **olhos RGB** piscam em vermelho ao perder vida.
+- Um **servo motor** abre a boca do robô.
+- Um **buzzer** emite um som diferente para adicionar ou remover vida.
 
-int main (void)
-{
-  ...
-}
+### 🔦 Lanterna com Sensor de Luminosidade
+- Um **LDR** monitora o nível de luz no ambiente.
+- Em ambientes escuros, um **LED azul de alto brilho** acende automaticamente, como uma lanterna.
 
-```
+### 😠 Emoções via Potenciômetro
+- O **potenciômetro** ajusta o “estado emocional” do robô:
+  - Altera a cor dos olhos RGB.
+  - Abre a boca com diferentes ângulos via servo.
+  - Modifica a frequência do som emitido pelo buzzer.
+  - Em níveis altos, Murphy fica "furioso": olhos vermelhos e som agudo.
 
-The PlatformIO Library Dependency Finder will find automatically dependent
-libraries by scanning project source files.
+### 🌐 Controle Remoto via Firebase
+- O robô está conectado à internet através do **Wi-Fi da ESP32**.
+- Integramos o projeto ao **Firebase** para controle remoto.
+- Criamos um **frontend web** onde é possível acessar remotamente o robô.
+- No site, é possível ativar o **modo online** e controlar todas as ações remotamente.
 
-More information about PlatformIO Library Dependency Finder
-- https://docs.platformio.org/page/librarymanager/ldf.html
+---
+
+## 🖥️ Monitoramento via Serial e Firebase
+
+Além das funcionalidades físicas, o robô **Murphy** permite **monitoramento completo em tempo real** via terminal serial e nuvem:
+
+- Sempre que a **vida é alterada**, o novo valor é exibido no terminal.
+- O valor do **potenciômetro** e do **sensor de luminosidade (LDR)** são constantemente monitorados e atualizados.
+- Esses dados são **sincronizados com o Firebase** automaticamente.
+- Sempre que uma atualização é enviada ao Firebase, a lista completa dos dados é **printada no terminal serial**, facilitando o **debug**, **registro histórico** ou **monitoramento remoto**.
+
+Essa integração torna o Murphy não só interativo, mas também observável — como qualquer bom experimento de laboratório… ou criatura prestes a ganhar consciência. 👀
+
+---
+
+## 🔧 Componentes Utilizados
+
+- 1x **ESP32 AM032 (Ants Make)**
+- 1x **Buzzer piezoelétrico**
+- 1x **Servo motor**
+- 2x **LEDs RGB** (olhos)
+- 1x **LED azul de alto brilho** (lanterna)
+- 3x **LEDs verdes de alto brilho** (indicador de vida)
+- 2x **LEDs vermelhos de alto brilho** (indicador de vida)
+- 1x **Sensor LDR**
+- 1x **Potenciômetro**
+- 2x **Botões táteis**
+- Resistores de 220Ω
+- Jumpers diversos
+- 1x **Placa perfurada** (para distribuir 3V3 e GND)
+
+### 🖨️ Carcaça do Robô
+- Modelada em **Blender**
+- Impressa em 3D na **Creality Ender S3 v1** com **PLA**
+- Tempo total de impressão: **~40 horas**
+
+---
+
+## 📸 Imagens e Demonstrações
+[Inclua aqui GIFs, vídeos ou imagens de alta qualidade do robô em ação]
+
+---
+
+## 🚀 Próximos Passos
+
+- [ ] Adicionar **reconhecimento de fala básico** para comandos como “Murphy, fala!” ou “Murphy, acende a luz!”
+- [ ] Adicionar **sensor de presença ou movimento (PIR ou ultrassônico)** para detectar aproximação
+- [ ] Implementar **comunicação entre múltiplos robôs via ESP-NOW** para simular interação entre jogadores
+- [ ] Adicionar **braços articuláveis com servos** para interações gestuais
+- [ ] Substituir **alimentação USB por bateria LiPo com carregamento via cabo USB-C**
+
+---
+## Equipe
+<table>
+  <td align="center">
+    <a href="https://github.com/Kal-0">
+      <img src="https://avatars.githubusercontent.com/u/106926790?v=4" width="200px;" alt="Foto Caio"/><br>
+      <sub>
+        <b>Caio Hirata</b>
+      </sub>
+    </a>
+  </td>
+  <td align="center">
+    <a href="https://github.com/DiogoHMC">
+      <img src="https://avatars.githubusercontent.com/u/116087739?v=4" width="200px;" alt="Foto Diogo"/><br>
+        <sub>
+          <b>Diogo Henrique</b>
+        </sub>
+      </a>
+  </td>
+  <td align="center">
+    <a href="https://github.com/pedro-coelho-dr">
+      <img src="https://avatars.githubusercontent.com/u/111138996?v=4" width="200px;" alt="Foto Pedro"/><br>
+        <sub>
+          <b>Pedro Coelho</b>
+        </sub>
+      </a>
+    </td>
+      <td align="center">
+    <a href="https://github.com/theomilll">
+      <img src="https://avatars.githubusercontent.com/u/99195030?v=4" width="200px;" alt="Foto Pedro"/><br>
+        <sub>
+          <b>Theo Moura</b>
+        </sub>
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/virnaamaral">
+        <img src="https://avatars.githubusercontent.com/u/116957619?v=4" width="200px;" alt="Foto Virna"/><br>
+          <sub>
+            <b>Virna Amaral</b>
+          </sub>
+      </a>
+  </td>
+</table>
+<br>
