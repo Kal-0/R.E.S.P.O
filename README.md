@@ -63,14 +63,8 @@ O robô **Murphy** permite **monitoramento completo em tempo real** via terminal
 
 ### 🖨️ Carcaça do Robô
 - Modelada em **Blender**
-- Impressa em 3D na **Creality Ender S3 v1** com **PLA**
+- Impressa em 3D na **Creality Ender S3 V1** com **PLA**
 - Tempo de impressão: **~40 horas**
-
----
-
-## 📸 Imagens e Demonstrações
-
-> *(Inclua aqui GIFs, vídeos ou imagens do robô em ação)*
 
 ---
 
@@ -81,6 +75,13 @@ O robô **Murphy** permite **monitoramento completo em tempo real** via terminal
 - [ ] Implementar **comunicação entre múltiplos robôs via ESP-NOW**
 - [ ] Adicionar **braços articuláveis com servos** para gestos
 - [ ] Substituir alimentação USB por **bateria LiPo com carregamento via USB-C**
+
+---
+
+## 🤓 Saiba Mais
+
+Para saber mais sobre o projeto, visite a nossa publicação no [Hackster.io](https://www.hackster.io/r-e-s-p-o/r-e-s-p-o-emotional-environment-sensing-bot-with-esp-673588)! 
+Caso deseje ver o nosso painel de controle do R.E.S.P.O, [clique aqui](https://embarcados-front-git-master-diogo-henriques-projects-d9773d64.vercel.app/).
 
 ---
 
